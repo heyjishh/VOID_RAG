@@ -79,6 +79,7 @@ def _base_state(**overrides) -> dict:
 class _FakeSettings:
     INTERNAL_CORPUS_PREMIUM = 1.2
     WEB_CORPUS_PENALTY = 0.8
+    EVIDENCE_MIN_SCORE = 0.35
 
 
 _settings = _FakeSettings()
@@ -161,6 +162,27 @@ def test_merge_evidence_domain_tagged():
     result = merge_evidence([chunk], [ev], _settings)
     for item in result:
         assert item["domain"] in ("internal", "web"), f"Unexpected domain: {item['domain']}"
+
+
+def test_merge_evidence_drops_items_below_min_score():
+    """A low-scoring, unclassifiable web item is dropped rather than surviving
+    purely because a top-10 slot was otherwise empty."""
+    good = _make_chunk("Murder is defined here", authority_score=0.8)
+    junk = _make_web_ev(
+        content="unrelated forum chatter", authority_score=0.15, source_type="unknown"
+    )
+    # junk final_score = 0.15 * 0.8 = 0.12, below EVIDENCE_MIN_SCORE (0.35)
+    result = merge_evidence([good], [junk], _settings)
+    assert len(result) == 1
+    assert result[0]["domain"] == "internal"
+
+
+def test_merge_evidence_min_score_boundary_is_inclusive():
+    """An item scoring exactly EVIDENCE_MIN_SCORE is kept, not dropped."""
+    ev = _make_web_ev(authority_score=_settings.EVIDENCE_MIN_SCORE / _settings.WEB_CORPUS_PENALTY,
+                       source_type="legal_news")
+    result = merge_evidence([], [ev], _settings)
+    assert len(result) == 1
 
 
 # ---------------------------------------------------------------------------

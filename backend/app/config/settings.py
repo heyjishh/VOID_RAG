@@ -16,17 +16,21 @@ _DEFAULT_GOVERNMENT_SEARCH_DOMAINS: list[str] = [
 ]
 
 _DEFAULT_AUTHORITY_TABLE: dict[str, float] = {
-    "supremecourt.gov": 1.0,
-    "law.cornell.edu": 0.95,
-    "sci.gov.in": 0.95,
-    "indiankanoon.org": 0.90,
-    "judis.nic.in": 0.90,
-    "manupatra.com": 0.85,
-    "pubmed.ncbi.nlm.nih.gov": 0.85,
-    "barandbench.com": 0.75,
-    "livelaw.in": 0.75,
-    "jstor.org": 0.80,
-    "wikipedia.org": 0.50,
+    # Keys are `source_type` categories as returned by detect_source_type()
+    # (see app/core/retrieval/source_type.py) — NOT raw domain names. The
+    # scorer's lookup (`AuthorityScorer._authority`) matches on source_type,
+    # so a domain-keyed table here would never match and every lookup would
+    # silently fall through to "default" regardless of true source quality.
+    "supreme_court_judgment": 1.0,
+    "constitutional": 1.0,
+    "statute": 0.95,
+    "high_court_judgment": 0.90,
+    "government_notification": 0.85,
+    "case_doc": 0.70,
+    "legal_news": 0.65,
+    "blog": 0.35,
+    "forum": 0.20,
+    "unknown": 0.15,
     "default": 0.60,
 }
 
@@ -183,6 +187,13 @@ class Settings(BaseSettings):
     AUTHORITY_SCORE_GAMMA: float = 0.15   # recency weight
     AUTHORITY_SCORE_DELTA: float = 0.10   # citation quality weight
     RECENCY_DECAY_LAMBDA: float = 0.05
+    # Recency credit given when published_at is missing or unparseable.
+    # Previously hardcoded to 1.0 (full credit) — that gave undated forum/
+    # blog junk the same recency score as a same-day publication.
+    RECENCY_UNKNOWN_DATE_SCORE: float = 0.5
+    # Evidence below this final_score is dropped in merge_evidence() rather
+    # than surviving purely by filling an otherwise-empty top-10 slot.
+    EVIDENCE_MIN_SCORE: float = 0.35
 
     # Authority lookup table — stored as JSON string env var, parsed on load
     AUTHORITY_TABLE: dict[str, float] = Field(

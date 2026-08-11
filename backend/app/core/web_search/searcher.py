@@ -17,6 +17,7 @@ import httpx
 from app.config.settings import settings
 from app.core.graph.state import WebEvidence
 from app.core.retrieval.authority_scorer import get_authority_scorer
+from app.core.retrieval.reranker import get_reranker
 from app.core.retrieval.source_type import HIGH_COURT_DOMAINS, detect_source_type
 from app.core.web_search.source_validator import SourceValidator
 
@@ -249,8 +250,11 @@ async def web_search(query: str, max_results: int = 5) -> list[WebEvidence]:
     4. DuckDuckGo — always-available free fallback
 
     After collection results are run through :class:`SourceValidator` to fetch
-    full page content, then ``detect_source_type`` and ``AuthorityScorer``
-    populate ``source_type`` and ``authority_score``.
+    full page content, then re-scored against ``query`` by the same
+    cross-encoder reranker used for internal chunks (replacing each
+    provider's own keyword-matching score with genuine semantic relevance),
+    then ``detect_source_type`` and ``AuthorityScorer`` populate
+    ``source_type`` and ``authority_score``.
     """
     results: list[WebEvidence] = []
 
@@ -290,6 +294,17 @@ async def web_search(query: str, max_results: int = 5) -> list[WebEvidence]:
     # Assign citation IDs by final list position (0-based)
     for i, ev in enumerate(results):
         ev["citation_id"] = f"web-{i}"
+
+    # Replace each provider's own keyword-matching score with genuine
+    # semantic relevance to the actual question, via the same cross-encoder
+    # used for internal chunks — otherwise authority scoring below trusts
+    # whatever heuristic the search provider used internally.
+    if results:
+        relevance_scores = get_reranker().score_pairs(
+            query, [ev.get("content", "") for ev in results]
+        )
+        for ev, rel in zip(results, relevance_scores):
+            ev["score"] = rel
 
     # Enrich with source type and authority score
     authority_scorer = get_authority_scorer()

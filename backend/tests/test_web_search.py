@@ -113,11 +113,15 @@ async def test_web_search_fallback_to_duckduckgo():
         score=0.3,
     )]
 
+    mock_reranker = MagicMock()
+    mock_reranker.score_pairs.side_effect = lambda q, texts: [0.5] * len(texts)
+
     with patch.object(searcher_mod, "_wigolo_available", AsyncMock(return_value=False)), \
          patch.object(searcher_mod, "_duckduckgo", AsyncMock(return_value=ddg_evidence)), \
          patch("app.core.web_search.searcher.settings") as mock_settings, \
          patch("app.core.web_search.searcher.SourceValidator", return_value=mock_validator), \
          patch("app.core.web_search.searcher.get_authority_scorer", return_value=mock_scorer), \
+         patch("app.core.web_search.searcher.get_reranker", return_value=mock_reranker), \
          patch("app.core.web_search.searcher.detect_source_type", return_value="web"):
 
         mock_settings.TAVILY_API_KEY = None
@@ -155,10 +159,14 @@ async def test_web_search_uses_tavily_when_key_present():
     mock_validator = AsyncMock()
     mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
 
+    mock_reranker = MagicMock()
+    mock_reranker.score_pairs.side_effect = lambda q, texts: [0.5] * len(texts)
+
     with patch.object(searcher_mod, "_wigolo_available", AsyncMock(return_value=False)), \
          patch("app.core.web_search.searcher.settings") as mock_settings, \
          patch("app.core.web_search.searcher.SourceValidator", return_value=mock_validator), \
          patch("app.core.web_search.searcher.get_authority_scorer", return_value=mock_scorer), \
+         patch("app.core.web_search.searcher.get_reranker", return_value=mock_reranker), \
          patch("app.core.web_search.searcher.detect_source_type", return_value="web"), \
          patch("tavily.AsyncTavilyClient", return_value=mock_tavily_client):
 
@@ -324,11 +332,15 @@ async def test_citation_id_format_is_web_index():
         for h in ddg_hits
     ]
 
+    mock_reranker = MagicMock()
+    mock_reranker.score_pairs.side_effect = lambda q, texts: [0.5] * len(texts)
+
     with patch.object(searcher_mod, "_wigolo_available", AsyncMock(return_value=False)), \
          patch.object(searcher_mod, "_duckduckgo", AsyncMock(return_value=ddg_evidence)), \
          patch("app.core.web_search.searcher.settings") as mock_settings, \
          patch("app.core.web_search.searcher.SourceValidator", return_value=mock_validator), \
          patch("app.core.web_search.searcher.get_authority_scorer", return_value=mock_scorer), \
+         patch("app.core.web_search.searcher.get_reranker", return_value=mock_reranker), \
          patch("app.core.web_search.searcher.detect_source_type", return_value="web"):
 
         mock_settings.TAVILY_API_KEY = None
@@ -370,11 +382,15 @@ async def test_web_search_returns_valid_web_evidence_with_authority_score():
         title=ddg_hit["title"], url=ddg_hit["href"], content=ddg_hit["body"], score=0.3
     )]
 
+    mock_reranker = MagicMock()
+    mock_reranker.score_pairs.side_effect = lambda q, texts: [0.5] * len(texts)
+
     with patch.object(searcher_mod, "_wigolo_available", AsyncMock(return_value=False)), \
          patch.object(searcher_mod, "_duckduckgo", AsyncMock(return_value=ddg_evidence)), \
          patch("app.core.web_search.searcher.settings") as mock_settings, \
          patch("app.core.web_search.searcher.SourceValidator", return_value=mock_validator), \
          patch("app.core.web_search.searcher.get_authority_scorer", return_value=mock_scorer), \
+         patch("app.core.web_search.searcher.get_reranker", return_value=mock_reranker), \
          patch("app.core.web_search.searcher.detect_source_type", return_value="legal_web"):
 
         mock_settings.TAVILY_API_KEY = None
@@ -392,6 +408,61 @@ async def test_web_search_returns_valid_web_evidence_with_authority_score():
             f"authority_score must be >= 0.0, got {ev['authority_score']}"
         )
         assert ev["source_type"] != "", "source_type must be populated after web_search()"
+
+
+# ===========================================================================
+# 9b. web_search() replaces each provider's raw score with the reranker's
+#     genuine semantic relevance before authority scoring
+# ===========================================================================
+
+@pytest.mark.asyncio
+async def test_web_search_score_comes_from_reranker_not_provider():
+    """web_search() must overwrite each result's provider-assigned score with
+    the cross-encoder reranker's own relevance score against the real query —
+    otherwise authority scoring trusts a search provider's own keyword-match
+    heuristic instead of genuine semantic relevance to the question."""
+    import app.core.web_search.searcher as searcher_mod
+    from app.core.web_search.searcher import _make_evidence
+
+    # Provider assigns a high raw score (0.95) to an evidence item...
+    ddg_evidence = [_make_evidence(
+        title="Off-topic but keyword-matched", url="https://example.com/x",
+        content="irrelevant content", score=0.95,
+    )]
+
+    mock_scorer = MagicMock()
+    captured_relevance = {}
+
+    def fake_score(ev, query_relevance, published_at=None, citation_count=0):
+        captured_relevance["value"] = query_relevance
+        return 0.5
+
+    mock_scorer.score.side_effect = fake_score
+
+    mock_validator = AsyncMock()
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+
+    # ...but the reranker says it's actually a poor semantic match (0.05).
+    mock_reranker = MagicMock()
+    mock_reranker.score_pairs.side_effect = lambda q, texts: [0.05] * len(texts)
+
+    with patch.object(searcher_mod, "_wigolo_available", AsyncMock(return_value=False)), \
+         patch.object(searcher_mod, "_duckduckgo", AsyncMock(return_value=ddg_evidence)), \
+         patch("app.core.web_search.searcher.settings") as mock_settings, \
+         patch("app.core.web_search.searcher.SourceValidator", return_value=mock_validator), \
+         patch("app.core.web_search.searcher.get_authority_scorer", return_value=mock_scorer), \
+         patch("app.core.web_search.searcher.get_reranker", return_value=mock_reranker), \
+         patch("app.core.web_search.searcher.detect_source_type", return_value="web"):
+
+        mock_settings.TAVILY_API_KEY = None
+        mock_settings.BRAVE_SEARCH_API_KEY = None
+
+        results = await searcher_mod.web_search("query", max_results=1)
+
+    assert results[0]["score"] == 0.05, "score must be the reranker's output, not the provider's 0.95"
+    assert captured_relevance["value"] == 0.05, (
+        "authority_scorer.score() must be called with the reranked relevance"
+    )
 
 
 # ===========================================================================
@@ -635,12 +706,16 @@ async def test_web_search_merges_and_dedupes_government_results_by_url():
     mock_validator = AsyncMock()
     mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
 
+    mock_reranker = MagicMock()
+    mock_reranker.score_pairs.side_effect = lambda q, texts: [0.5] * len(texts)
+
     with patch.object(searcher_mod, "_wigolo_available", AsyncMock(return_value=True)), \
          patch.object(searcher_mod, "_wigolo", AsyncMock(return_value=generic_results)), \
          patch.object(searcher_mod, "_wigolo_government_search", AsyncMock(return_value=government_results)), \
          patch("app.core.web_search.searcher.settings") as mock_settings, \
          patch("app.core.web_search.searcher.SourceValidator", return_value=mock_validator), \
          patch("app.core.web_search.searcher.get_authority_scorer", return_value=mock_scorer), \
+         patch("app.core.web_search.searcher.get_reranker", return_value=mock_reranker), \
          patch("app.core.web_search.searcher.detect_source_type", return_value="web"):
 
         mock_settings.WEB_SEARCH_GOVERNMENT_MAX_RESULTS = 5

@@ -53,6 +53,10 @@ def merge_evidence(
       ``final_score = evidence["authority_score"] * settings.WEB_CORPUS_PENALTY``
 
     After scoring:
+    - Drop items with ``final_score < settings.EVIDENCE_MIN_SCORE`` — without
+      this floor, low-quality items (e.g. an unclassifiable forum post) could
+      still occupy a top-10 slot purely because nothing else was competing
+      for it, not because they were actually good evidence.
     - Deduplicate by ``content_hash`` (keep item with highest final_score).
     - Sort descending by final_score.
     - Return top 10.
@@ -104,6 +108,9 @@ def merge_evidence(
             "final_score": final_score,
         }
         combined.append(item)
+
+    # --- Drop evidence that doesn't clear the minimum quality floor --------
+    combined = [item for item in combined if item["final_score"] >= settings.EVIDENCE_MIN_SCORE]
 
     # --- Deduplicate by content_hash (keep highest final_score) ------------
     best: dict[str, dict] = {}

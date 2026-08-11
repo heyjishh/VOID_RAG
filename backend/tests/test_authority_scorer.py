@@ -256,14 +256,27 @@ class TestAuthorityScorer:
         chunk = {"source_type": "totally_unknown_type_xyz"}
         result = scorer.score(chunk, query_relevance=1.0)
         default_authority = settings.AUTHORITY_TABLE.get("default", 0.60)
-        # recency with no published_at = 1.0, citation_q with 0 cites = 0.0
+        # recency with no published_at = RECENCY_UNKNOWN_DATE_SCORE, citation_q with 0 cites = 0.0
         expected = (
             settings.AUTHORITY_SCORE_ALPHA * 1.0
             + settings.AUTHORITY_SCORE_BETA * default_authority
-            + settings.AUTHORITY_SCORE_GAMMA * 1.0
+            + settings.AUTHORITY_SCORE_GAMMA * settings.RECENCY_UNKNOWN_DATE_SCORE
             + settings.AUTHORITY_SCORE_DELTA * 0.0
         )
         assert abs(result - expected) < 1e-9
+
+    def test_score_literal_unknown_source_type_uses_dedicated_key(self):
+        """detect_source_type()'s literal 'unknown' fallback must map to its
+        own low-authority entry, not silently collide with 'default' — an
+        unclassifiable source (forum spam, driver-support threads, etc.)
+        should score below a merely-uncatalogued-but-plausible source."""
+        from app.core.retrieval.authority_scorer import AuthorityScorer
+        from app.config.settings import settings
+        scorer = AuthorityScorer()
+        unknown_score = scorer.score({"source_type": "unknown"}, query_relevance=0.5)
+        default_score = scorer.score({"source_type": "totally_unknown_type_xyz"}, query_relevance=0.5)
+        assert settings.AUTHORITY_TABLE["unknown"] < settings.AUTHORITY_TABLE.get("default", 0.60)
+        assert unknown_score < default_score
 
     def test_score_higher_relevance_gives_higher_score(self):
         """Higher query_relevance → higher score (all else equal)."""
@@ -295,14 +308,14 @@ class TestAuthorityScorer:
         from app.core.retrieval.authority_scorer import AuthorityScorer, MAX_CITATIONS
         from app.config.settings import settings
         scorer = AuthorityScorer()
-        chunk = {"source_type": "case_doc"}
+        chunk = {}  # no source_type -> falls back to "default"
         default_authority = settings.AUTHORITY_TABLE.get("default", 0.60)
         result = scorer.score(chunk, query_relevance=1.0, citation_count=MAX_CITATIONS)
-        # citation_q = log(1001)/log(1001) = 1.0; recency=1.0 (no published_at)
+        # citation_q = log(1001)/log(1001) = 1.0; recency=RECENCY_UNKNOWN_DATE_SCORE (no published_at)
         expected = (
             settings.AUTHORITY_SCORE_ALPHA * 1.0
             + settings.AUTHORITY_SCORE_BETA * default_authority
-            + settings.AUTHORITY_SCORE_GAMMA * 1.0
+            + settings.AUTHORITY_SCORE_GAMMA * settings.RECENCY_UNKNOWN_DATE_SCORE
             + settings.AUTHORITY_SCORE_DELTA * 1.0
         )
         assert abs(result - expected) < 1e-9
@@ -334,7 +347,7 @@ class TestAuthorityScorer:
         expected = (
             settings.AUTHORITY_SCORE_ALPHA * 1.0
             + settings.AUTHORITY_SCORE_BETA * default_authority
-            + settings.AUTHORITY_SCORE_GAMMA * 1.0
+            + settings.AUTHORITY_SCORE_GAMMA * settings.RECENCY_UNKNOWN_DATE_SCORE
             + settings.AUTHORITY_SCORE_DELTA * expected_citation_q
         )
         assert abs(result - expected) < 1e-9
@@ -346,20 +359,19 @@ class TestAuthorityScorer:
         scorer2 = get_authority_scorer()
         assert scorer1 is scorer2
 
-    def test_recency_no_date_returns_one(self):
-        """published_at=None means recency=1.0 (no penalty)."""
+    def test_recency_no_date_uses_configured_unknown_score(self):
+        """published_at=None uses RECENCY_UNKNOWN_DATE_SCORE, not full credit."""
         from app.core.retrieval.authority_scorer import AuthorityScorer
         from app.config.settings import settings
         scorer = AuthorityScorer()
-        # With recency=1.0 and no citations and full relevance:
-        expected_max = (
+        expected = (
             settings.AUTHORITY_SCORE_ALPHA * 1.0
             + settings.AUTHORITY_SCORE_BETA * settings.AUTHORITY_TABLE.get("default", 0.60)
-            + settings.AUTHORITY_SCORE_GAMMA * 1.0
+            + settings.AUTHORITY_SCORE_GAMMA * settings.RECENCY_UNKNOWN_DATE_SCORE
             + settings.AUTHORITY_SCORE_DELTA * 0.0
         )
         result = scorer.score({}, query_relevance=1.0, published_at=None)
-        assert abs(result - expected_max) < 1e-9
+        assert abs(result - expected) < 1e-9
 
     def test_score_datetime_with_z_suffix(self):
         """ISO datetime with Z suffix must parse without error."""

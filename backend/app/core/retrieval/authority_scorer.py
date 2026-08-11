@@ -4,7 +4,7 @@ Multi-factor formula
 --------------------
     z_relevance = clip(query_relevance, 0, 1)
     authority   = AUTHORITY_TABLE.get(source_type, default)
-    recency     = exp(-λ * years_since)        # years_since=0 if date unknown
+    recency     = exp(-λ * years_since)        # RECENCY_UNKNOWN_DATE_SCORE if date unknown
     citation_q  = log(1 + cites) / log(1 + MAX_CITATIONS)
     score       = α*z_relevance + β*authority + γ*recency + δ*citation_q
 
@@ -38,6 +38,7 @@ class AuthorityScorer:
         self._gamma: float = settings.AUTHORITY_SCORE_GAMMA
         self._delta: float = settings.AUTHORITY_SCORE_DELTA
         self._lambda: float = settings.RECENCY_DECAY_LAMBDA
+        self._recency_unknown: float = settings.RECENCY_UNKNOWN_DATE_SCORE
 
     # ------------------------------------------------------------------
     # Public API
@@ -92,16 +93,18 @@ class AuthorityScorer:
         return self._table.get(source_type, self._table.get("default", 0.60))
 
     def _recency(self, published_at: str | None) -> float:
-        """Compute recency decay; returns 1.0 (no decay) when date is unknown."""
+        """Compute recency decay; falls back to RECENCY_UNKNOWN_DATE_SCORE
+        when the date is missing or unparseable, rather than assuming the
+        item is maximally recent."""
         if not published_at:
-            return 1.0
+            return self._recency_unknown
         try:
             pub_dt = _parse_iso(published_at)
             now = datetime.now(tz=timezone.utc)
             years_since = max(0.0, (now - pub_dt).days / 365.25)
             return math.exp(-self._lambda * years_since)
         except (ValueError, TypeError, OverflowError):
-            return 1.0  # unparseable date — no recency penalty
+            return self._recency_unknown
 
 
 def _parse_iso(date_str: str) -> datetime:
