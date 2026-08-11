@@ -17,7 +17,6 @@ ENV_FILE = Path(__file__).parent.parent / ".env"
 # (bucket_name, default_prefix)
 _BUCKET_CANDIDATES: list[tuple[str, str]] = [
     ("all-acts-raw", "Acts"),
-    ("legal-platform-pdfs-2026", "documents"),
     ("income-tax-acts", ""),
     ("bucket-legal-9219", "documents"),
 ]

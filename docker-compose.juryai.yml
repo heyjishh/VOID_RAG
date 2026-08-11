@@ -1,6 +1,6 @@
 # ============================================================================
 # JURYAI standalone docker-compose — runs Qdrant + Quickwit independently
-# of the main legal-platform stack.
+# of the main application stack.
 # ============================================================================
 
 services:

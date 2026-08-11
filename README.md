@@ -7,8 +7,8 @@ JURYAI is a Retrieval-Augmented Generation (RAG) system for legal document analy
 - **Python 3.12+** with `uv` package manager
 - **Docker** and **Docker Compose** (for Qdrant and Quickwit)
 - **Node.js 18+** (for frontend)
-- **PostgreSQL 13+** (reused from legal-platform)
-- **Redis** (reused from legal-platform)
+- **PostgreSQL 13+**
+- **Redis** (or Valkey)
 
 ### Install uv
 
@@ -23,13 +23,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 JURYAI runs two search backends (Qdrant and Quickwit) independently:
 
 ```bash
-cd /home/jishh/Desktop/legal-platform
-docker compose -f JURYAI/docker-compose.juryai.yml up -d
+docker compose -f docker-compose.juryai.yml up -d
 ```
 
 Verify services are healthy:
 ```bash
-docker ps --filter "label=io.docker.compose.project=legal-platform"
 curl http://localhost:6333/livez    # Qdrant
 curl http://localhost:7280/health   # Quickwit
 ```
@@ -39,7 +37,7 @@ curl http://localhost:7280/health   # Quickwit
 Copy the example environment file and fill in API keys:
 
 ```bash
-cd JURYAI/backend
+cd backend
 cp .env.juryai.example .env
 # Edit .env and add:
 #   - OPENAI_API_KEY or GROQ_API_KEY or MISTRAL_API_KEY
@@ -51,7 +49,7 @@ nano .env
 ### 3. Start Backend
 
 ```bash
-cd JURYAI/backend
+cd backend
 uv sync                                    # Install dependencies
 uv run python -m app.main                 # Starts on http://localhost:8100
 ```
@@ -68,7 +66,7 @@ API endpoints:
 ### 4. Start Frontend
 
 ```bash
-cd JURYAI/frontend
+cd frontend
 npm install                                # Install dependencies
 npm run dev                                # Starts on http://localhost:5174
 ```
@@ -94,21 +92,21 @@ Open http://localhost:5174 in your browser.
 
 - **Qdrant**: Vector embeddings for semantic search (~384-dim vectors, `juryai_legal` collection).
 - **Quickwit**: Full-text index for keyword search (`juryai_legal` index).
-- **PostgreSQL**: Document metadata and conversation history (via legal-platform).
+- **PostgreSQL**: Document metadata and conversation history.
 
 ## Development
 
 ### Run Tests
 
 ```bash
-cd JURYAI/backend
+cd backend
 uv run pytest tests/ -v
 ```
 
 ### Code Quality
 
 ```bash
-cd JURYAI/backend
+cd backend
 uv run ruff check app/
 uv run mypy app/ --no-error-summary 2>&1 | head -20  # First 20 type errors
 ```
@@ -128,7 +126,7 @@ uv run mypy app/ --no-error-summary 2>&1 | head -20  # First 20 type errors
 | `QUICKWIT_INDEX` | Yes | `juryai_legal` |
 | `AWS_ACCESS_KEY_ID` | Yes | (for S3 document retrieval) |
 | `AWS_SECRET_ACCESS_KEY` | Yes | (for S3 document retrieval) |
-| `S3_BUCKET_NAME` | Yes | `legal-platform-docs` |
+| `S3_BUCKET_NAME` | Yes | `juryai-docs` |
 | `POSTGRES_HOST` | Yes | `localhost` |
 | `REDIS_URL` | Yes | `redis://localhost:6379/1` |
 
@@ -143,19 +141,15 @@ lsof -i :8100
 # Check dependencies
 uv sync --refresh
 # Check logs
-docker compose -f JURYAI/docker-compose.juryai.yml logs
+docker compose -f docker-compose.juryai.yml logs
 ```
 
 ### No search results
 - Verify Qdrant and Quickwit are healthy
-- Check that documents are indexed (via legal-platform backfill scripts)
+- Check that documents are indexed (run the ingestion pipeline against your S3 bucket)
 - Try a different query with more specific keywords
 
 ### LLM errors
 - Verify API key is set and has quota
 - Check network/firewall allows outbound to LLM provider
 - See backend logs for detailed error
-
-## License
-
-Part of the legal-platform monorepo. See root `LICENSE` for details.

@@ -36,12 +36,11 @@ class Settings(BaseSettings):
 
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = ""  # supply via .env / environment — never hardcode
-    POSTGRES_DB: str = "legal_platform"
+    POSTGRES_DB: str = "juryai"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
-    # POSTGRES_DB defaults to the same name the unrelated sibling legal-platform
-    # backend uses; a dedicated schema keeps JuryAI's tables isolated if both
-    # end up pointed at the same physical Postgres instance.
+    # A dedicated schema keeps JuryAI's tables isolated if this Postgres
+    # instance is ever shared with another application.
     POSTGRES_SCHEMA: str = "juryai"
 
     @field_validator("POSTGRES_SCHEMA")

@@ -25,7 +25,7 @@ class MultiS3Loader:
         self.bucket_names: list[str] = [b for b in bucket_names if b]
         self.prefix: str = (prefix or settings.S3_DOCUMENT_PREFIX).strip("/")
         self.region: str = region or settings.AWS_REGION
-        self.local_root: Path = Path(local_root or "/tmp/legal-platform-storage")
+        self.local_root: Path = Path(local_root or "/tmp/juryai-storage")
 
         # One boto3 client per bucket (same credentials, different logical target)
         self._clients: dict[str, object] = {}
