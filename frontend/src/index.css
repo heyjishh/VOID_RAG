@@ -1,0 +1,368 @@
+@import "tailwindcss";
+
+/* ─── Judicial Ink Design System ─────────────────────────────────────────────
+   Dual-tone: crimson (the Gown — brand + primary action + user voice) paired
+   with ink (the Ink — AI reasoning/generative surfaces). Gold (the Seal —
+   authority/citations) and sage (verified/trust) round out the semantic set.
+   Red is decoupled from the brand: --color-error is its own hue, never an
+   alias for --primary, so danger states never borrow the brand mark's color.
+   Light values live on :root; dark values are composed explicitly (not a
+   mechanical inversion) under prefers-color-scheme and the explicit toggle. */
+:root {
+  /* Brand primaries — oxblood (Indian Supreme Court / advocate gowns), deepened
+     and desaturated off pure crimson so it reads as leather-bound authority,
+     not a rose/pink cast. Reserved for: logo mark, primary CTA. Not decoration. */
+  --primary: #6B1219;
+  --primary-light: #EDE3DE;
+  --primary-hover: #4A0B10;
+  --on-primary: #FAF8F4;
+
+  /* Ink accent — the reasoning/generative counterpart to the Gown. Owns the
+     retrieval → generation pipeline, the assistant's presence, and the web
+     connector, so "the AI is working" never has to reach for brand crimson. */
+  --ink: #2E3A5C;
+  --ink-hover: #232C46;
+  --ink-light: #E9EBF2;
+  --ink-border: #C3C8DA;
+  --on-ink: #FAF8F4;
+
+  /* Gold accent — Ashoka Pillar / judicial brass. Authority + citations. */
+  --gold: #B8922A;
+  --gold-light: #F7F0DC;
+  --gold-border: #DFC47A;
+
+  /* Sage — law firm prestige. Verified / trust / success. */
+  --sage: #3B5C3A;
+  --sage-light: #EBF2EB;
+  --sage-border: #8FB88D;
+
+  /* True error/danger — its own hue, decoupled from brand crimson. */
+  --color-error: #C4432A;
+  --color-error-bg: #FBEAE3;
+  --color-error-border: #E8B49E;
+  --color-error-hover: #A6371F;
+
+  /* Info — external/web evidence. */
+  --color-info: #2A5C8C;
+  --color-info-bg: #E8F0F8;
+  --color-info-border: #B9D3E8;
+
+  /* Authority accent colours (legacy names, repointed to the decoupled tokens
+     above — nothing downstream needed to change to stop borrowing brand red). */
+  --accent-green: var(--sage);
+  --accent-green-bg: var(--sage-light);
+  --accent-green-border: var(--sage-border);
+  --accent-yellow: #92640E;
+  --accent-yellow-bg: var(--gold-light);
+  --accent-yellow-border: var(--gold-border);
+  --accent-red: var(--color-error);
+  --accent-red-bg: var(--color-error-bg);
+  --accent-red-border: var(--color-error-border);
+
+  /* Legacy aliases */
+  --color-primary: var(--primary);
+  --color-secondary: var(--border-default);
+  --color-accent: var(--primary);
+  --color-accent-hover: var(--primary-hover);
+
+  /* Surfaces — warm parchment */
+  --bg-main: #F5F1EB;
+  --bg-soft: #EDE8DF;
+  --bg-card: #FAF8F4;
+
+  /* Typography — warm ink tones */
+  --text-primary: #1C1612;
+  --text-secondary: #5C4F40;
+  --text-muted: #9C8E7C;
+  --text-link: var(--primary);
+  --text-link-hover: var(--primary-hover);
+
+  /* Borders — aged paper */
+  --border-default: #D8D0C4;
+  --border-input: #C8BEB4;
+  --border-focus: var(--ink);
+
+  /* Semantic */
+  --color-success: var(--sage);
+  --color-warning: var(--accent-yellow);
+  --color-error-text: var(--color-error);
+
+  /* Shadows — tinted, not generic black */
+  --shadow-card: 0 1px 3px rgba(28, 22, 18, .06), 0 1px 2px rgba(28, 22, 18, .04);
+  --shadow-panel: 0 4px 24px rgba(28, 22, 18, .14);
+  --shadow-focus: 0 0 0 3px rgba(46, 58, 92, .16);
+  --shadow-card-hover: 0 4px 18px rgba(184, 146, 42, .18);
+  --shadow-primary: 0 2px 8px rgba(107, 18, 25, .18);
+  --shadow-primary-sm: 0 1px 4px rgba(107, 18, 25, .15);
+  --shadow-ink: 0 2px 8px rgba(46, 58, 92, .22);
+  --shadow-ink-sm: 0 1px 4px rgba(46, 58, 92, .18);
+
+  /* Overlay scrim (modals/drawers) */
+  --overlay-scrim: rgba(28, 22, 18, .30);
+
+  /* Radii */
+  --radius-sm: 5px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
+
+  font-family: 'DM Sans', -apple-system, sans-serif;
+}
+
+/* ─── Dark theme — composed explicitly, not inverted ─────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary: #C2453B;
+    --primary-light: #34211D;
+    --primary-hover: #D96A5E;
+    --on-primary: #FAF8F4;
+
+    --ink: #8B9CD4;
+    --ink-hover: #A6B5DE;
+    --ink-light: #222842;
+    --ink-border: #3B4568;
+    --on-ink: #15130F;
+
+    --gold: #D9AE4E;
+    --gold-light: #362C18;
+    --gold-border: #6B551F;
+
+    --sage: #79AC77;
+    --sage-light: #1C2B1B;
+    --sage-border: #3F5A3D;
+
+    --color-error: #E2694A;
+    --color-error-bg: #34201A;
+    --color-error-border: #6B3624;
+    --color-error-hover: #F08469;
+
+    --color-info: #79ABDD;
+    --color-info-bg: #1B2A38;
+    --color-info-border: #35526B;
+
+    --accent-yellow: #D9AE4E;
+
+    --bg-main: #15130F;
+    --bg-soft: #1E1A14;
+    --bg-card: #26221A;
+
+    --text-primary: #F1ECE2;
+    --text-secondary: #C9BFAE;
+    --text-muted: #8C8172;
+
+    --border-default: #3A3527;
+    --border-input: #453F30;
+
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, .4), 0 1px 2px rgba(0, 0, 0, .3);
+    --shadow-panel: 0 4px 24px rgba(0, 0, 0, .5);
+    --shadow-focus: 0 0 0 3px rgba(139, 156, 212, .28);
+    --shadow-card-hover: 0 4px 18px rgba(217, 174, 78, .2);
+    --shadow-primary: 0 2px 8px rgba(194, 69, 59, .24);
+    --shadow-primary-sm: 0 1px 4px rgba(194, 69, 59, .2);
+    --shadow-ink: 0 2px 8px rgba(139, 156, 212, .3);
+    --shadow-ink-sm: 0 1px 4px rgba(139, 156, 212, .26);
+
+    --overlay-scrim: rgba(0, 0, 0, .55);
+  }
+}
+
+:root[data-theme="dark"] {
+  --primary: #C2453B;
+  --primary-light: #34211D;
+  --primary-hover: #D96A5E;
+  --on-primary: #FAF8F4;
+
+  --ink: #8B9CD4;
+  --ink-hover: #A6B5DE;
+  --ink-light: #222842;
+  --ink-border: #3B4568;
+  --on-ink: #15130F;
+
+  --gold: #D9AE4E;
+  --gold-light: #362C18;
+  --gold-border: #6B551F;
+
+  --sage: #79AC77;
+  --sage-light: #1C2B1B;
+  --sage-border: #3F5A3D;
+
+  --color-error: #E2694A;
+  --color-error-bg: #34201A;
+  --color-error-border: #6B3624;
+  --color-error-hover: #F08469;
+
+  --color-info: #79ABDD;
+  --color-info-bg: #1B2A38;
+  --color-info-border: #35526B;
+
+  --accent-yellow: #D9AE4E;
+
+  --bg-main: #15130F;
+  --bg-soft: #1E1A14;
+  --bg-card: #26221A;
+
+  --text-primary: #F1ECE2;
+  --text-secondary: #C9BFAE;
+  --text-muted: #8C8172;
+
+  --border-default: #3A3527;
+  --border-input: #453F30;
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, .4), 0 1px 2px rgba(0, 0, 0, .3);
+  --shadow-panel: 0 4px 24px rgba(0, 0, 0, .5);
+  --shadow-focus: 0 0 0 3px rgba(139, 156, 212, .28);
+  --shadow-card-hover: 0 4px 18px rgba(217, 174, 78, .2);
+  --shadow-primary: 0 2px 8px rgba(194, 69, 59, .24);
+  --shadow-primary-sm: 0 1px 4px rgba(194, 69, 59, .2);
+  --shadow-ink: 0 2px 8px rgba(139, 156, 212, .3);
+  --shadow-ink-sm: 0 1px 4px rgba(139, 156, 212, .26);
+
+  --overlay-scrim: rgba(0, 0, 0, .55);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ─── Browser surfaces — themed, not left to defaults ─────────────────────── */
+::selection {
+  background: var(--ink-light);
+  color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+input, textarea {
+  caret-color: var(--ink);
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ─── Text highlight for source matches ────────────────────────────────── */
+mark.source-highlight {
+  background: var(--gold-light);
+  color: var(--text-primary);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* ─── Animations ────────────────────────────────────────────────────────── */
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 0.2; }
+}
+
+@keyframes chat-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Ink bleed — used for active indicators */
+@keyframes inkPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* Gentle entrance for timeline steps */
+@keyframes stepIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Score bar fill */
+@keyframes fillBar {
+  from { width: 0; }
+}
+
+/* Gold shimmer on the wordmark */
+@keyframes wordmarkShimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  /* Loading/progress feedback stays legible — keep it slow, not frozen. */
+  [data-motion="feedback"] {
+    animation-duration: 1.4s !important;
+  }
+}
+
+/* ─── Markdown prose ────────────────────────────────────────────────────── */
+.prose-md { font-size: 14px; line-height: 1.75; }
+.prose-md p { margin: 0 0 0.65em; }
+.prose-md p:last-child { margin-bottom: 0; }
+.prose-md ul, .prose-md ol { margin: 0.4em 0 0.65em; padding-left: 1.4em; }
+.prose-md li { margin-bottom: 0.25em; }
+.prose-md strong { font-weight: 600; color: var(--text-primary); }
+.prose-md em { font-style: italic; }
+.prose-md h1, .prose-md h2, .prose-md h3 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+  margin: 0.8em 0 0.4em;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+.prose-md h1 { font-size: 1.35em; }
+.prose-md h2 { font-size: 1.18em; }
+.prose-md h3 { font-size: 1.05em; }
+.prose-md code {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-soft);
+  border: 1px solid var(--border-default);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.87em;
+}
+.prose-md pre {
+  background: var(--bg-soft);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 0.8em 1em;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.prose-md pre code { background: none; border: none; padding: 0; font-size: 0.9em; }
+.prose-md blockquote {
+  border-left: 3px solid var(--gold);
+  margin: 0.6em 0;
+  padding: 0.4em 1em;
+  color: var(--text-secondary);
+  background: var(--gold-light);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-style: italic;
+}
+.prose-md a { color: var(--primary); text-decoration: underline; }
+.prose-md a:hover { color: var(--primary-hover); }
+.prose-md hr { border: none; border-top: 1px solid var(--border-default); margin: 0.8em 0; }
+
+/* ─── Utility ───────────────────────────────────────────────────────────── */
+.font-display {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}

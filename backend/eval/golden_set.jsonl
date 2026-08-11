@@ -1,0 +1,6 @@
+{"question": "What does Section 302 of the Indian Penal Code prescribe as punishment for murder?", "expected_sources": ["ipc"], "notes": "Death or life imprisonment, and fine."}
+{"question": "What is the deduction limit under Section 80C of the Income Tax Act?", "expected_sources": ["income-tax", "80c"], "notes": "Up to Rs 1,50,000."}
+{"question": "What is the time limit to file an appeal to the Income Tax Appellate Tribunal under Section 253?", "expected_sources": ["income-tax", "253"], "notes": "60 days from the date of the order."}
+{"question": "Under Section 138 of the Negotiable Instruments Act, what is the punishment for cheque dishonour?", "expected_sources": ["negotiable-instruments", "138"], "notes": "Up to 2 years imprisonment or fine up to twice the cheque amount, or both."}
+{"question": "What is the rate of GST charged on works contracts for government projects?", "expected_sources": ["gst"], "notes": "Rate-specific — should refuse if not in corpus."}
+{"question": "What is the population of Mars in 2026?", "expected_sources": [], "notes": "Adversarial: no legal grounding exists — the gate should block or refuse."}

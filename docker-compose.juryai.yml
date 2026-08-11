@@ -1,0 +1,114 @@
+# ============================================================================
+# JURYAI standalone docker-compose — runs Qdrant + Quickwit independently
+# of the main legal-platform stack.
+# ============================================================================
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.9.7
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - juryai
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /livez HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && read -r line <&3 && echo $$line | grep -q 200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  quickwit:
+    image: quickwit/quickwit:0.8.0
+    command: ["run"]
+    environment:
+      QW_ENABLE_OPENTELEMETRY_OTLP_EXPORTER: "false"
+    ports:
+      - "127.0.0.1:7280:7280"
+    volumes:
+      - quickwit_data:/quickwit/qwdata
+    networks:
+      - juryai
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/7280' 2>/dev/null && echo ok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "60", "1", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - valkey_data:/data
+    networks:
+      - juryai
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    # Same env-sourcing idiom as the `backend` service in backend/docker-compose.yml
+    # (env_file against the real .env copied from .env.juryai.example) — this
+    # infra-only compose file has no other service that needs secrets, so this
+    # is the first one to source from it.
+    env_file:
+      - backend/.env
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - juryai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wigolo:
+    image: ghcr.io/knockoutez/wigolo
+    # Must bind 0.0.0.0 inside the container for Docker's port publishing to
+    # reach it; wigolo's own fail-closed gate then requires either a bearer
+    # token or an explicit unauthenticated opt-in for that bind. We opt into
+    # unauthenticated because the host port is restricted to 127.0.0.1 below
+    # — the same loopback-only trust model qdrant/quickwit/valkey/postgres
+    # already use above, none of which need an app-level token either.
+    command: ["serve", "--host", "0.0.0.0", "--port", "3333"]
+    environment:
+      WIGOLO_DATA_DIR: /data
+      WIGOLO_SERVE_ALLOW_UNAUTHENTICATED: "1"
+      # NOT WIGOLO_SEARCH=hybrid: that mode requires a SearXNG sidecar
+      # (WIGOLO_SEARXNG_URL) that isn't deployed here — without it, hybrid
+      # silently falls back to the same core engines anyway, so setting it
+      # would be dead config that only adds a startup warning.
+    ports:
+      - "127.0.0.1:3333:3333"
+    volumes:
+      - wigolo_data:/data
+    networks:
+      - juryai
+    healthcheck:
+      # wigolo's own image ships a Node runtime, not necessarily bash/curl —
+      # this is wigolo's documented healthcheck for the `serve` command.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3333/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+
+networks:
+  juryai:
+    driver: bridge
+
+volumes:
+  qdrant_data:
+  quickwit_data:
+  valkey_data:
+  postgres_data:
+  wigolo_data:

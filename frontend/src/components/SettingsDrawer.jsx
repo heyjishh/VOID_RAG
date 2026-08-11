@@ -1,0 +1,338 @@
+import { useState, useEffect, useRef } from 'react'
+import gsap from 'gsap'
+import { triggerIngest, getSyncStatus } from '../lib/api.js'
+import { PROMPT_LIBRARY } from '../lib/promptLibrary.js'
+import { prefersReducedMotion } from '../lib/motion.js'
+import ThemeToggle from './ThemeToggle.jsx'
+import ConnectorsPanel from './ConnectorsPanel.jsx'
+
+export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearch }) {
+  const [status, setStatus] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [syncInfo, setSyncInfo] = useState(null)
+  const drawerRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    let interval
+
+    async function refresh() {
+      try {
+        const info = await getSyncStatus()
+        if (cancelled) return
+        setSyncInfo(info)
+        setBusy(Boolean(info.running))
+        clearInterval(interval)
+        interval = setInterval(refresh, info.running ? 1500 : 30000)
+      } catch { /* backend not reachable — keep last state */ }
+    }
+
+    refresh()
+    interval = setInterval(refresh, 30000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [])
+
+  // Slide in from right
+  useEffect(() => {
+    if (prefersReducedMotion()) return
+    gsap.fromTo(
+      drawerRef.current,
+      { x: 60, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.28, ease: 'power3.out' }
+    )
+  }, [])
+
+  function handleClose() {
+    if (prefersReducedMotion()) { onClose(); return }
+    gsap.to(drawerRef.current, {
+      x: 60, opacity: 0, duration: 0.2, ease: 'power2.in',
+      onComplete: onClose,
+    })
+  }
+
+  async function ingest() {
+    setBusy(true); setStatus(null)
+    try {
+      await triggerIngest('', true)
+      setStatus({ ok: true, msg: 'Sync started in background — progress below.' })
+    } catch (e) {
+      setStatus({ ok: false, msg: 'Error: ' + e.message })
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex justify-end"
+      style={{ background: 'var(--overlay-scrim)' }}
+      onClick={handleClose}
+    >
+      <div
+        ref={drawerRef}
+        className="flex flex-col gap-6 overflow-y-auto"
+        style={{
+          width: '380px',
+          height: '100%',
+          background: 'var(--bg-card)',
+          borderLeft: '1px solid var(--border-default)',
+          boxShadow: 'var(--shadow-panel)',
+          padding: '24px',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <h2
+            className="font-display m-0 italic"
+            style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}
+          >
+            Settings
+          </h2>
+          <button
+            onClick={handleClose}
+            className="flex items-center justify-center w-7 h-7 rounded-[5px] transition-colors"
+            style={{
+              border: '1px solid var(--border-default)',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--ink-light)'; e.currentTarget.style.color = 'var(--ink)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ width: '100%', height: '1px', background: 'var(--border-default)' }} />
+
+        {/* Preferences */}
+        <section>
+          <SectionTitle>Appearance</SectionTitle>
+          <ThemeToggle />
+        </section>
+
+        {/* Connectors */}
+        <section>
+          <SectionTitle>Connectors</SectionTitle>
+          <ConnectorsPanel useWebSearch={useWebSearch} onToggleWebSearch={onToggleWebSearch} />
+        </section>
+
+        {/* Skills — read-only view of the same registry the composer's Prompt Library draws from */}
+        <section>
+          <SectionTitle>Skills</SectionTitle>
+          <div className="flex flex-col gap-1.5">
+            {PROMPT_LIBRARY.map(item => (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-[var(--radius-sm)]"
+                style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-default)' }}
+              >
+                <span
+                  className="text-[9.5px] font-bold uppercase px-1.5 py-0.5 rounded-[3px] flex-shrink-0"
+                  style={{ color: 'var(--ink)', background: 'var(--ink-light)', letterSpacing: '0.04em' }}
+                >
+                  {item.skill}
+                </span>
+                <span className="text-[11.5px] truncate" style={{ color: 'var(--text-secondary)' }}>
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Sync Status */}
+        {syncInfo && (
+          <section>
+            <SectionTitle>Corpus Sync Status</SectionTitle>
+            <div className="rounded-[var(--radius-sm)] p-3 text-[12px]" style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-default)', lineHeight: 2 }}>
+              <SyncRow label="Total documents" value={syncInfo.total_on_s3} />
+              <SyncRow label="Ingested" value={syncInfo.ingested} valueColor="var(--sage)" />
+              <SyncRow
+                label="Pending"
+                value={syncInfo.pending ?? '—'}
+                valueColor={syncInfo.pending > 0 ? 'var(--accent-yellow)' : 'var(--text-muted)'}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* Live Sync Progress */}
+        {syncInfo?.running && (
+          <section>
+            <SectionTitle>Sync Progress</SectionTitle>
+            <div className="rounded-[var(--radius-sm)] p-3" style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-default)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {syncInfo.processed} / {syncInfo.total} processed
+                </span>
+                <span style={{ color: 'var(--ink)', fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                  {syncInfo.total ? Math.round((syncInfo.processed / syncInfo.total) * 100) : 0}%
+                </span>
+              </div>
+              <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border-default)', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${syncInfo.total ? Math.min(100, (syncInfo.processed / syncInfo.total) * 100) : 0}%`,
+                  background: 'var(--ink)',
+                  borderRadius: '3px',
+                  transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                }} />
+              </div>
+              {syncInfo.current_key && (
+                <p style={{
+                  margin: '8px 0 0',
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}>
+                  {syncInfo.current_key.split('/').pop()}
+                </p>
+              )}
+              <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                ✓ {syncInfo.ingested} ingested · ⚠ {syncInfo.failed} failed · – {syncInfo.skipped} skipped
+              </p>
+            </div>
+          </section>
+        )}
+
+        {/* Sync Data */}
+        <section>
+          <SectionTitle>Sync Data</SectionTitle>
+          <ActionButton
+            onClick={ingest}
+            disabled={busy}
+            primary
+          >
+            {busy ? 'Syncing…' : '⟳ Sync Data'}
+          </ActionButton>
+          {status && (
+            <p style={{
+              margin: '10px 0 0',
+              fontSize: '12px',
+              color: status.ok ? 'var(--sage)' : 'var(--color-error)',
+              background: status.ok ? 'var(--sage-light)' : 'var(--color-error-bg)',
+              border: `1px solid ${status.ok ? 'var(--sage-border)' : 'var(--color-error-border)'}`,
+              borderRadius: 'var(--radius-sm)',
+              padding: '8px 12px',
+              fontStyle: 'italic',
+            }}>
+              {status.msg}
+            </p>
+          )}
+        </section>
+
+        {/* LLM Provider */}
+        <section>
+          <SectionTitle>LLM Provider</SectionTitle>
+          <div style={{
+            background: 'var(--bg-soft)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px',
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.8,
+          }}>
+            <p style={{ margin: '0 0 6px', color: 'var(--text-primary)', fontWeight: 500 }}>
+              Free gateway (auto-configured)
+            </p>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+              GATEWAY_URL=http://localhost:8080/v1<br />
+              GATEWAY_KEY → auto-detected
+            </p>
+            <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
+              260+ models via local gateway
+            </p>
+          </div>
+        </section>
+
+        {/* Web Search */}
+        <section>
+          <SectionTitle>Web Search Providers</SectionTitle>
+          <div style={{
+            background: 'var(--bg-soft)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px',
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.9,
+          }}>
+            <div>
+              <span style={{ color: 'var(--ink)', fontWeight: 500 }}>TAVILY_API_KEY</span>
+              {' '}→ Tavily (best)
+            </div>
+            <div>
+              <span style={{ color: 'var(--ink)', fontWeight: 500 }}>BRAVE_SEARCH_API_KEY</span>
+              {' '}→ Brave Search
+            </div>
+            <div style={{ color: 'var(--text-muted)' }}>None set → DuckDuckGo (free)</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function SectionTitle({ children }) {
+  return (
+    <h3
+      className="uppercase tracking-widest"
+      style={{
+        margin: '0 0 10px',
+        fontSize: '10px',
+        fontWeight: 700,
+        color: 'var(--text-muted)',
+        letterSpacing: '0.08em',
+      }}
+    >
+      {children}
+    </h3>
+  )
+}
+
+function SyncRow({ label, value, valueColor }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+      <span style={{ fontWeight: 600, color: valueColor || 'var(--text-primary)', fontFamily: "'JetBrains Mono', monospace" }}>
+        {value ?? '—'}
+      </span>
+    </div>
+  )
+}
+
+function ActionButton({ children, onClick, disabled, primary = false }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        flex: 1,
+        padding: '9px',
+        background: disabled
+          ? 'var(--border-default)'
+          : primary ? 'var(--primary)' : 'var(--bg-soft)',
+        color: disabled
+          ? 'var(--text-muted)'
+          : primary ? 'var(--on-primary)' : 'var(--text-primary)',
+        border: primary ? 'none' : `1px solid var(--border-default)`,
+        borderRadius: 'var(--radius-sm)',
+        fontSize: '13px',
+        fontWeight: 600,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'all 0.15s',
+        fontFamily: "'DM Sans', sans-serif",
+        boxShadow: primary && !disabled ? 'var(--shadow-primary-sm)' : 'none',
+      }}
+    >
+      {children}
+    </button>
+  )
+}

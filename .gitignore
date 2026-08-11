@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.benchmarks/
+*.egg-info/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.*.example
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Logs & runtime artifacts
+*.log
+.playwright-mcp/
+*.pid
+
+# Claude / tool state
+.claude/.cc-writes/
+.impeccable/
+
+# DB / data
+*.db
+*.sqlite3
+.ingested_manifest.json

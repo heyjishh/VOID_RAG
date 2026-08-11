@@ -1,0 +1,111 @@
+# ============================================================================
+# JURYAI Backend Docker Compose
+# Full stack: Qdrant + Quickwit + Valkey + FastAPI backend + React frontend
+# ============================================================================
+
+services:
+  # --- Infrastructure -------------------------------------------------------
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.7
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - juryai
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /livez HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && read -r line <&3 && echo $$line | grep -q 200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  quickwit:
+    image: quickwit/quickwit:0.8.0
+    command: ["run"]
+    environment:
+      QW_ENABLE_OPENTELEMETRY_OTLP_EXPORTER: "false"
+    ports:
+      - "127.0.0.1:7280:7280"
+    volumes:
+      - quickwit_data:/quickwit/qwdata
+    networks:
+      - juryai
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/7280' 2>/dev/null && echo ok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "60", "1", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - valkey_data:/data
+    networks:
+      - juryai
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Application ----------------------------------------------------------
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8100:8100"
+    env_file:
+      - .env
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QUICKWIT_HOST=quickwit
+      - QUICKWIT_PORT=7280
+      - VALKEY_HOST=valkey
+      - VALKEY_PORT=6379
+      - GATEWAY_URL=http://host.docker.internal:8080/v1
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      quickwit:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    networks:
+      - juryai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8100/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:5174:5174"
+    environment:
+      - VITE_API_URL=http://localhost:8100
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - juryai
+
+networks:
+  juryai:
+    driver: bridge
+
+volumes:
+  qdrant_data:
+  quickwit_data:
+  valkey_data:
