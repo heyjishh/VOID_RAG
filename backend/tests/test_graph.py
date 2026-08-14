@@ -1,7 +1,13 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 from app.core.graph.intent import classify_intent
-from app.core.graph.nodes import legal_retrieve_node, verify_answer_node, web_search_node
+from app.core.graph.nodes import (
+    generate_answer_node,
+    legal_retrieve_node,
+    verify_answer_node,
+    web_search_node,
+)
+from app.core.retrieval.citation import derive_citations
 from app.core.graph.workflow import get_workflow
 
 
@@ -47,6 +53,36 @@ def test_get_workflow_wires_merge_node_between_retrieve_and_answer():
 # ---------------------------------------------------------------------------
 # verify_answer_node — must use full merged evidence, not internal-only
 # ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_generate_answer_node_numbers_evidence_by_merged_position():
+    """The answer prompt labels each evidence item with a fixed [N] keyed to its
+    1-based position in merged_evidence — the same order derive_citations() uses —
+    so [N] in the answer maps to citations[N-1]. The old verbose "[Source: ...]"
+    form must be gone."""
+    state = {
+        "question": "What is the punishment for murder?",
+        "history": [],
+        "merged_evidence": _MIXED_MERGED,
+        "streaming": True,  # store the prompt, skip the LLM call
+    }
+    result = await generate_answer_node(state)
+    prompt = result["answer_prompt"]
+
+    assert "[1] ipc.pdf p.12" in prompt      # merged[0] (internal) → [1]
+    assert "[2] Live Law" in prompt          # merged[1] (web)      → [2]
+    assert "[Source:" not in prompt
+
+    # [N] must line up with citations[N-1] derived from the same evidence list.
+    verification = {"supported_claims": [{"claim": "murder", "content_hash": "int-hash-1"}]}
+    citations = derive_citations(verification, _MIXED_MERGED)
+    assert citations[0]["source"] == "ipc.pdf"          # [1]
+    assert citations[1]["content_hash"] == "web-hash-1"  # [2]
+    # citations[N-1]["index"] must equal N — the explicit field the frontend
+    # keys off, independent of citations[] never being reordered/filtered today.
+    assert citations[0]["index"] == 1
+    assert citations[1]["index"] == 2
+
 
 @pytest.mark.asyncio
 async def test_verify_answer_node_passes_full_mixed_domain_evidence():
@@ -103,7 +139,7 @@ async def test_web_search_node_invokes_on_step_for_start_before_search_runs():
     reasoning_steps list."""
     observed: list[dict] = []
 
-    async def fake_search(question, max_results=5):
+    async def fake_search(question, max_results=5, on_step=None):
         assert [s["step"] for s in observed] == ["web_search_start"], (
             "web_search_start must have already fired via on_step before "
             "web_search() runs"
@@ -145,3 +181,126 @@ async def test_nodes_are_on_step_optional_and_do_not_error_when_absent():
     with patch("app.core.graph.nodes.web_search", AsyncMock(return_value=[])):
         result = await web_search_node({"question": "q"})
     assert result["web_evidence"] == []
+
+
+# ---------------------------------------------------------------------------
+# Interact feature — scoped retrieval (searches ONLY the current session's
+# uploaded documents, never the global Qdrant/Quickwit corpus).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_interact_retrieve_node_searches_session_store_scoped_to_session():
+    from app.core.graph.nodes import interact_retrieve_node
+
+    captured: dict = {}
+
+    def fake_search(session_id, query, top_k=20):
+        captured["session_id"] = session_id
+        captured["query"] = query
+        return [{"text": "your clause", "source": "my_upload.pdf", "page": 0, "score": 0.9}]
+
+    class _FakeReranker:
+        def rerank(self, question, chunks, top_k):
+            return chunks
+
+    with patch("app.core.retrieval.session_store.search", fake_search), \
+         patch("app.core.graph.nodes.get_reranker", lambda: _FakeReranker()):
+        result = await interact_retrieve_node(
+            {"question": "what does clause 4 say?", "session_id": "sess-123"}
+        )
+
+    assert captured == {"session_id": "sess-123", "query": "what does clause 4 say?"}
+    assert result["legal_chunks"][0]["source"] == "my_upload.pdf"
+
+
+@pytest.mark.asyncio
+async def test_interact_retrieve_node_invokes_on_step_for_start_and_done():
+    observed: list[dict] = []
+
+    class _FakeReranker:
+        def rerank(self, question, chunks, top_k):
+            assert [s["step"] for s in observed] == ["internal_retrieval_start"]
+            return []
+
+    with patch("app.core.retrieval.session_store.search", lambda *a, **k: []), \
+         patch("app.core.graph.nodes.get_reranker", lambda: _FakeReranker()):
+        from app.core.graph.nodes import interact_retrieve_node
+        await interact_retrieve_node(
+            {"question": "q", "session_id": "s1", "on_step": observed.append}
+        )
+
+    assert [s["step"] for s in observed] == [
+        "internal_retrieval_start", "internal_retrieval_done",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_route_and_retrieve_interact_mode_skips_web_search_even_if_requested():
+    """Interact mode must stay scoped strictly to the session's own uploads —
+    it must never fan out to web search, even when use_web_search=True."""
+    from app.core.graph.workflow import route_and_retrieve
+
+    interact_mock = AsyncMock(return_value={"legal_chunks": [], "reasoning_steps": []})
+    legal_mock = AsyncMock(return_value={"legal_chunks": [], "reasoning_steps": []})
+    web_mock = AsyncMock(return_value={"web_evidence": [], "web_results": [], "reasoning_steps": []})
+
+    with patch("app.core.graph.workflow.interact_retrieve_node", interact_mock), \
+         patch("app.core.graph.workflow.legal_retrieve_node", legal_mock), \
+         patch("app.core.graph.workflow.web_search_node", web_mock):
+        await route_and_retrieve({
+            "question": "q", "mode": "interact", "session_id": "s1", "use_web_search": True,
+        })
+
+    interact_mock.assert_called_once()
+    legal_mock.assert_not_called()
+    web_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_route_and_retrieve_ask_mode_uses_legal_retrieve_not_interact():
+    """Regression: default (ask) mode must keep using legal_retrieve_node —
+    adding interact mode must not change the default global-corpus path."""
+    from app.core.graph.workflow import route_and_retrieve
+
+    interact_mock = AsyncMock(return_value={"legal_chunks": [], "reasoning_steps": []})
+    legal_mock = AsyncMock(return_value={"legal_chunks": [], "reasoning_steps": []})
+
+    with patch("app.core.graph.workflow.interact_retrieve_node", interact_mock), \
+         patch("app.core.graph.workflow.legal_retrieve_node", legal_mock):
+        await route_and_retrieve({"question": "q", "use_web_search": False})
+
+    legal_mock.assert_called_once()
+    interact_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_evidence_merge_node_tags_interact_domain_in_interact_mode():
+    """merge_evidence always tags legal_chunks-derived items 'internal'; in
+    interact mode these came from session_store, not the shared corpus, so
+    evidence_merge_node must relabel them for the frontend's mode badge."""
+    from app.core.graph.nodes import evidence_merge_node
+
+    state = {
+        "mode": "interact",
+        "legal_chunks": [{"text": "my clause", "source": "upload.pdf", "page": 0, "score": 0.9}],
+        "web_evidence": [],
+    }
+    result = await evidence_merge_node(state)
+
+    assert result["merged_evidence"]
+    assert all(item["domain"] == "interact" for item in result["merged_evidence"])
+
+
+@pytest.mark.asyncio
+async def test_evidence_merge_node_keeps_internal_domain_in_ask_mode():
+    """Regression: default (ask) mode must not be affected by the interact
+    domain relabeling."""
+    from app.core.graph.nodes import evidence_merge_node
+
+    state = {
+        "legal_chunks": [{"text": "ipc text", "source": "ipc.pdf", "page": 0, "score": 0.9}],
+        "web_evidence": [],
+    }
+    result = await evidence_merge_node(state)
+
+    assert all(item["domain"] == "internal" for item in result["merged_evidence"])

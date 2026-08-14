@@ -26,7 +26,7 @@ export default function DocumentCard({ chunk, question }) {
     gsap.to(cardRef.current, {
       y: enter ? -2 : 0,
       boxShadow: enter
-        ? '0 4px 16px rgba(33,192,99,.15)'
+        ? '0 0 0 1px var(--sage-border)'
         : 'var(--shadow-card)',
       duration: 0.2,
       ease: 'power2.out',
@@ -59,8 +59,8 @@ export default function DocumentCard({ chunk, question }) {
           width: '32px',
           height: '32px',
           borderRadius: '6px',
-          background: chunk.verified ? '#e8faf0' : '#f5f5f5',
-          border: `1px solid ${chunk.verified ? '#c3f0d4' : 'var(--border-default)'}`,
+          background: chunk.verified ? 'var(--sage-light)' : 'var(--bg-soft)',
+          border: `1px solid ${chunk.verified ? 'var(--sage-border)' : 'var(--border-default)'}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -97,8 +97,8 @@ export default function DocumentCard({ chunk, question }) {
               fontSize: '10px',
               fontWeight: 600,
               color: 'var(--color-primary)',
-              background: '#e8faf0',
-              border: '1px solid #c3f0d4',
+              background: 'var(--sage-light)',
+              border: '1px solid var(--sage-border)',
               borderRadius: '4px',
               padding: '1px 6px',
               letterSpacing: '0.2px',

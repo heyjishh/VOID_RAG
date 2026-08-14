@@ -73,6 +73,12 @@ npm run dev                                # Starts on http://localhost:5174
 
 Open http://localhost:5174 in your browser.
 
+Optional env (`.env` in `frontend/`): `VITE_LANDING_URL` — where the chat app's
+brand mark links back to. Defaults to `http://localhost:5173`. Serve the
+landing page (`jurisai-landing/index.html`) on that port to enable the round
+trip: landing CTAs deep-link into the app with `?q=<query>` prefills, and the
+app's brand mark links back to the landing site.
+
 ## Architecture
 
 ### Backend (FastAPI)

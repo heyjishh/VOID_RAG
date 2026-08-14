@@ -37,3 +37,4 @@ npm-debug.log*
 *.db
 *.sqlite3
 .ingested_manifest.json
+.gstack/

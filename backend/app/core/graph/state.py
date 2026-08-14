@@ -57,9 +57,20 @@ class SupportedClaim(TypedDict):
 class CitationResult(TypedDict):
     quote: str
     verified: bool
+    # Whether this item's [N] marker literally appears in the answer text —
+    # distinct from `verified` (claim-level groundedness). Lets callers tell
+    # "retrieved but unused" evidence apart from "cited" evidence.
+    cited: bool
     source: str
     page: int
     content_hash: str
+    # 1-based position in the evidence list the answer prompt numbered — the
+    # same number a [N] marker refers to. derive_citations happens to emit one
+    # result per evidence item today (no filtering), so index always equals
+    # array position, but the frontend must key off this explicit field, not
+    # array order, so it stays correct if derive_citations ever starts
+    # filtering or reordering.
+    index: int
 
 
 class JuryAIState(TypedDict):
@@ -84,6 +95,12 @@ class JuryAIState(TypedDict):
     # Which provider in settings.llm_provider_chain actually served the answer
     model_provider: NotRequired[str]
     model_name: NotRequired[str]
+    # Interact feature: "mode" picks legal_retrieve_node ("ask", default —
+    # global corpus) vs interact_retrieve_node ("interact" — scoped to just
+    # this session's uploaded docs via app.core.retrieval.session_store).
+    # session_id is required when mode == "interact".
+    mode: NotRequired[str]
+    session_id: NotRequired[Optional[str]]
     # Per-request live step sink (never cached on the compiled graph — set fresh
     # in _stream_generator so concurrent requests don't cross-talk on one callback).
     on_step: NotRequired[Callable[[ReasoningStep], None]]

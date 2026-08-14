@@ -13,6 +13,14 @@ router = APIRouter()
 
 logger = logging.getLogger("juryai.documents")
 
+# Media types for the formats the ingestion parser supports (see
+# app.core.ingestion.parser). Anything else the corpus never serves.
+_MEDIA_TYPES = {".pdf": "application/pdf", ".txt": "text/plain", ".md": "text/markdown"}
+
+
+def _media_type(source: str) -> str:
+    return _MEDIA_TYPES.get(Path(source).suffix.lower(), "application/octet-stream")
+
 
 def _build_index(entries: list[dict]) -> dict:
     return {
@@ -58,7 +66,7 @@ async def view_document(source: str):
         data = await asyncio.to_thread(_read_cache_file, cache_path)
         return Response(
             content=data,
-            media_type="application/pdf",
+            media_type=_media_type(source),
             headers={"Content-Disposition": f'inline; filename="{source}"'},
         )
 
@@ -78,6 +86,6 @@ async def view_document(source: str):
 
     return Response(
         content=data,
-        media_type="application/pdf",
+        media_type=_media_type(source),
         headers={"Content-Disposition": f'inline; filename="{source}"'},
     )

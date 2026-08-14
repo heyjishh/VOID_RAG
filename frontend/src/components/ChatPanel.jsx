@@ -6,6 +6,7 @@ import { deriveTitle, upsertConversation } from '../lib/conversationStore.js'
 import { refineDraft } from '../lib/refinePrompt.js'
 import { deriveFollowups } from '../lib/followups.js'
 import { prefersReducedMotion } from '../lib/motion.js'
+import LegalFlick from './LegalFlick.jsx'
 import MessageBubble from './MessageBubble.jsx'
 import ReasoningTimeline from './ReasoningTimeline.jsx'
 import PromptLibrary from './PromptLibrary.jsx'
@@ -18,31 +19,6 @@ const SUGGESTION_CHIPS = [
   'What constitutes hearsay under the Evidence Act?',
 ]
 
-function ScalesIllustration() {
-  return (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-hidden>
-      {/* Outer ring */}
-      <circle cx="26" cy="26" r="25" stroke="var(--border-default)" strokeWidth="1" />
-      {/* Inner circle */}
-      <circle cx="26" cy="26" r="20" fill="var(--gold-light)" />
-      {/* Pillar */}
-      <line x1="26" y1="12" x2="26" y2="42" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round" />
-      {/* Crossbar */}
-      <line x1="13" y1="18" x2="39" y2="18" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round" />
-      {/* Left chain */}
-      <line x1="13" y1="18" x2="10" y2="27" stroke="var(--gold)" strokeWidth="1.4" strokeLinecap="round" />
-      {/* Right chain */}
-      <line x1="39" y1="18" x2="42" y2="27" stroke="var(--gold)" strokeWidth="1.4" strokeLinecap="round" />
-      {/* Left pan */}
-      <path d="M7 27 Q10 32 13 27" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-      {/* Right pan */}
-      <path d="M39 27 Q42 32 45 27" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-      {/* Base */}
-      <path d="M21 42 Q26 39 31 42" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-    </svg>
-  )
-}
-
 export default function ChatPanel({
   onNewSources,
   onLoading,
@@ -50,6 +26,7 @@ export default function ChatPanel({
   onToggleWebSearch,
   initialConversationId = null,
   initialMessages = [],
+  initialQuestion = null,
   onPersist,
 }) {
   const [messages, setMessages] = useState(initialMessages)
@@ -61,6 +38,9 @@ export default function ChatPanel({
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const autoRanRef = useRef(false)
+  const messagesRef = useRef(messages)
+  useEffect(() => { messagesRef.current = messages }, [messages])
 
   function persist(finalMessages, id) {
     if (!onPersist || !id) return
@@ -90,11 +70,22 @@ export default function ChatPanel({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, reasoningSteps])
 
-  async function submit(e) {
+  function handleSubmit(e) {
     e.preventDefault()
-    if (!input.trim() || loading) return
+    send(input)
+  }
 
-    const q = input.trim()
+  useEffect(() => {
+    if (autoRanRef.current || !initialQuestion?.trim() || messages.length > 0) return
+    autoRanRef.current = true
+    send(initialQuestion.trim())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function send(rawQuestion) {
+    const q = rawQuestion.trim()
+    if (!q || loading) return
+
     setInput('')
     setLoading(true)
     setReasoningSteps([])
@@ -157,35 +148,28 @@ export default function ChatPanel({
         const resolvedConvId = data.conversation_id || convId
         if (data.conversation_id) setConvId(data.conversation_id)
 
-        let finalMsgsSnapshot = null
-        let resolvedVerification = data.verification || null
-        setMessages(prev => {
-          const msgs = [...prev]
-          const last = msgs[msgs.length - 1]
-          if (last?.id === assistantMsgId) {
-            // done.verification is authoritative; fall back to the value
-            // captured from the earlier verification event.
-            resolvedVerification = data.verification || last.verification || null
-            msgs[msgs.length - 1] = {
-              role: 'assistant',
-              id: assistantMsgId,
-              streaming: false,
-              content: data.answer || last.content,
-              intent: data.intent,
-              sources_used: data.sources_used,
-              source_chunks: finalChunks,
-              citations: data.citations || [],
-              verification: resolvedVerification,
-              reasoning_steps: accumulatedSteps,
-              question: q,
-            }
+        const msgs = [...messagesRef.current]
+        const last = msgs[msgs.length - 1]
+        const resolvedVerification = data.verification || last?.verification || null
+        if (last?.id === assistantMsgId) {
+          msgs[msgs.length - 1] = {
+            role: 'assistant',
+            id: assistantMsgId,
+            streaming: false,
+            content: data.answer || last.content,
+            intent: data.intent,
+            sources_used: data.sources_used,
+            source_chunks: finalChunks,
+            citations: data.citations || [],
+            verification: resolvedVerification,
+            reasoning_steps: accumulatedSteps,
+            question: q,
           }
-          finalMsgsSnapshot = msgs
-          return msgs
-        })
+        }
+        setMessages(msgs)
         onNewSources(finalChunks, q, resolvedVerification)
         setReasoningExpanded(false)
-        persist(finalMsgsSnapshot, resolvedConvId)
+        persist(msgs, resolvedConvId)
       },
       onError: (err) => {
         setMessages(prev => {
@@ -220,41 +204,66 @@ export default function ChatPanel({
       {/* Messages area */}
       <div
         className="flex-1 overflow-y-auto px-8 py-6 flex flex-col gap-4"
-        style={{ background: 'var(--bg-main)' }}
       >
         {/* Empty state */}
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center flex-1 gap-5 pb-20">
-            <ScalesIllustration />
+          <div className="flex flex-col items-center justify-center flex-1 gap-4 pb-16">
+            <LegalFlick
+              variant="compact"
+              className="w-48 h-48"
+              onPrompt={q => { setInput(q); inputRef.current?.focus() }}
+              style={{
+                border: '1px solid var(--border-default)',
+                background: 'radial-gradient(ellipse 70% 50% at 50% 60%, rgba(193,18,31,0.12), transparent 70%)',
+              }}
+            />
 
             <div className="text-center">
               <h2
-                className="font-display m-0 mb-1.5 italic"
+                className="font-display m-0 mb-1.5"
                 style={{
                   color: 'var(--text-primary)',
-                  fontSize: '22px',
+                  fontSize: '19px',
                   fontWeight: 600,
-                  letterSpacing: '-0.01em',
+                  letterSpacing: '-0.015em',
                 }}
               >
-                Ask a legal question
+                Start a research matter
               </h2>
-              <p
-                className="m-0 text-[13px]"
-                style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}
-              >
-                Grounded in your legal corpus · authority-weighted citations
+              <p className="m-0 text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
+                Ask a legal question — the answer arrives with ranked evidence and a groundedness verdict.
               </p>
             </div>
 
             {/* Suggestion chips */}
-            <div className="flex gap-2 flex-wrap justify-center max-w-md mt-1">
+            <div className="flex gap-2 flex-wrap justify-center max-w-md mt-2">
               {SUGGESTION_CHIPS.map(suggestion => (
                 <SuggestionChip
                   key={suggestion}
                   text={suggestion}
                   onClick={() => { setInput(suggestion); inputRef.current?.focus() }}
                 />
+              ))}
+            </div>
+
+            <div className="flex items-center gap-4 mt-4" style={{ color: 'var(--text-muted)' }}>
+              {[
+                { n: '1', t: 'Ask' },
+                { n: '2', t: 'Review evidence' },
+                { n: '3', t: 'Draft' },
+              ].map((step, i) => (
+                <div key={step.n} className="flex items-center gap-4">
+                  {i > 0 && <span className="w-6 h-px" style={{ background: 'var(--border-default)' }} />}
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9.5px] font-bold tabular-nums"
+                      style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', fontFamily: 'var(--font-mono)' }}
+                    >
+                      {step.n}
+                    </span>
+                    <span className="text-[11px] font-medium">{step.t}</span>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -300,6 +309,8 @@ export default function ChatPanel({
         style={{
           borderTop: '1px solid var(--border-default)',
           background: 'var(--bg-card)',
+          backdropFilter: 'blur(24px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(160%)',
         }}
       >
         {/* Web search toggle */}
@@ -332,7 +343,7 @@ export default function ChatPanel({
         </div>
 
         {/* Input form */}
-        <form onSubmit={submit} className="flex gap-2.5 items-center">
+        <form onSubmit={handleSubmit} className="flex gap-2.5 items-center">
           <div className="relative flex-shrink-0 flex gap-1">
             <ToolbarIconButton
               title="Skills · Prompt library"
@@ -364,7 +375,7 @@ export default function ChatPanel({
               color: 'var(--text-primary)',
               background: 'var(--bg-main)',
               transition: 'border-color 0.15s, box-shadow 0.15s',
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "var(--font-sans)",
             }}
             onFocus={e => {
               e.target.style.borderColor = 'var(--ink)'
@@ -468,7 +479,7 @@ function SubmitButton({ loading, disabled }) {
         color: disabled ? 'var(--text-muted)' : 'var(--on-primary)',
         border: 'none',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "var(--font-sans)",
         boxShadow: disabled ? 'none' : 'var(--shadow-primary)',
       }}
     >

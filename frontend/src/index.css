@@ -1,58 +1,53 @@
 @import "tailwindcss";
 
-/* ─── Judicial Ink Design System ─────────────────────────────────────────────
-   Dual-tone: crimson (the Gown — brand + primary action + user voice) paired
-   with ink (the Ink — AI reasoning/generative surfaces). Gold (the Seal —
-   authority/citations) and sage (verified/trust) round out the semantic set.
-   Red is decoupled from the brand: --color-error is its own hue, never an
-   alias for --primary, so danger states never borrow the brand mark's color.
-   Light values live on :root; dark values are composed explicitly (not a
-   mechanical inversion) under prefers-color-scheme and the explicit toggle. */
-:root {
-  /* Brand primaries — oxblood (Indian Supreme Court / advocate gowns), deepened
-     and desaturated off pure crimson so it reads as leather-bound authority,
-     not a rose/pink cast. Reserved for: logo mark, primary CTA. Not decoration. */
-  --primary: #6B1219;
-  --primary-light: #EDE3DE;
-  --primary-hover: #4A0B10;
-  --on-primary: #FAF8F4;
+/* ─── JurAI — THE DOCKET. Brutalist legal-research system. ──────────────────
+   Mirrors the landing's case-file aesthetic: a hard 3-colour palette of
+   ink, bone and blood. Dark (the vault) is the default; [data-theme="light"]
+   flips to the parchment invert. Surfaces are flat, hard-edged panels with
+   hairline bone borders — no frosted glass, no glow, no pastels.
+   Blood = action / violation, gold = authority, bone = the record. */
 
-  /* Ink accent — the reasoning/generative counterpart to the Gown. Owns the
-     retrieval → generation pipeline, the assistant's presence, and the web
-     connector, so "the AI is working" never has to reach for brand crimson. */
-  --ink: #2E3A5C;
-  --ink-hover: #232C46;
-  --ink-light: #E9EBF2;
-  --ink-border: #C3C8DA;
-  --on-ink: #FAF8F4;
+/* ─── Night chamber (default & data-theme="dark") ─── */
+:root, :root[data-theme="dark"] {
+  /* Brand — blood (action, CTA, the case-file seal mark) */
+  --primary: #c1121f;
+  --primary-light: rgba(193, 18, 31, 0.14);
+  --primary-hover: #ec2e3d;
+  --on-primary: #ece2cf;
 
-  /* Gold accent — Ashoka Pillar / judicial brass. Authority + citations. */
-  --gold: #B8922A;
-  --gold-light: #F7F0DC;
-  --gold-border: #DFC47A;
+  /* Ink accent — the AI's reasoning line on the bench (bone light) */
+  --ink: #ece2cf;
+  --ink-hover: #ffffff;
+  --ink-light: rgba(236, 226, 207, 0.12);
+  --ink-border: rgba(236, 226, 207, 0.38);
+  --on-ink: #0e0c09;
 
-  /* Sage — law firm prestige. Verified / trust / success. */
-  --sage: #3B5C3A;
-  --sage-light: #EBF2EB;
-  --sage-border: #8FB88D;
+  /* Gold — authority, citations, the Seal of source evidence */
+  --gold: #d4af37;
+  --gold-light: rgba(212, 175, 55, 0.14);
+  --gold-border: rgba(212, 175, 55, 0.42);
 
-  /* True error/danger — its own hue, decoupled from brand crimson. */
-  --color-error: #C4432A;
-  --color-error-bg: #FBEAE3;
-  --color-error-border: #E8B49E;
-  --color-error-hover: #A6371F;
+  /* Sage — verified / trusted findings (muted bone-green ledger ink) */
+  --sage: #9aa97c;
+  --sage-light: rgba(154, 169, 124, 0.14);
+  --sage-border: rgba(154, 169, 124, 0.4);
 
-  /* Info — external/web evidence. */
-  --color-info: #2A5C8C;
-  --color-info-bg: #E8F0F8;
-  --color-info-border: #B9D3E8;
+  /* Error/violation — blood red */
+  --color-error: #ec2e3d;
+  --color-error-bg: rgba(193, 18, 31, 0.16);
+  --color-error-border: rgba(193, 18, 31, 0.5);
+  --color-error-hover: #ff5252;
 
-  /* Authority accent colours (legacy names, repointed to the decoupled tokens
-     above — nothing downstream needed to change to stop borrowing brand red). */
+  /* Info — external/web evidence (bone-dim) */
+  --color-info: #c9bfa8;
+  --color-info-bg: rgba(236, 226, 207, 0.1);
+  --color-info-border: rgba(236, 226, 207, 0.3);
+
+  /* Authority accent colours (legacy aliases) */
   --accent-green: var(--sage);
   --accent-green-bg: var(--sage-light);
   --accent-green-border: var(--sage-border);
-  --accent-yellow: #92640E;
+  --accent-yellow: var(--gold);
   --accent-yellow-bg: var(--gold-light);
   --accent-yellow-border: var(--gold-border);
   --accent-red: var(--color-error);
@@ -65,170 +60,210 @@
   --color-accent: var(--primary);
   --color-accent-hover: var(--primary-hover);
 
-  /* Surfaces — warm parchment */
-  --bg-main: #F5F1EB;
-  --bg-soft: #EDE8DF;
-  --bg-card: #FAF8F4;
+  /* Surfaces — the flat docket ladder: ink vault, dark panel, lighter panel */
+  --bg-main: #0e0c09;
+  --bg-card: #161310;
+  --bg-soft: #1d1914;
 
-  /* Typography — warm ink tones */
-  --text-primary: #1C1612;
-  --text-secondary: #5C4F40;
-  --text-muted: #9C8E7C;
-  --text-link: var(--primary);
-  --text-link-hover: var(--primary-hover);
+  /* Fixed radial washes — faint blood/gold glows in the vault. Subtle. */
+  --wash-1: rgba(193, 18, 31, 0.07);
+  --wash-2: rgba(212, 175, 55, 0.05);
+  --wash-3: rgba(236, 226, 207, 0.05);
 
-  /* Borders — aged paper */
-  --border-default: #D8D0C4;
-  --border-input: #C8BEB4;
-  --border-focus: var(--ink);
+  /* Bench props — open-book pages (parchment), shelf woods */
+  --page: #ece2cf;
+  --page-ink: #16130d;
+  --bg-plan: #6b4423;
+  --bg-plan-deep: #4a2e17;
+
+  /* Typography — bone on ink */
+  --text-primary: #ece2cf;
+  --text-secondary: #b7ac95;
+  --text-muted: #7d7566;
+  --text-link: var(--blood, var(--primary));
+  --text-link-hover: #ec2e3d;
+
+  /* Borders — hard hairline bone; never soft grey */
+  --border-default: rgba(236, 226, 207, 0.24);
+  --border-input: rgba(236, 226, 207, 0.42);
+  --border-focus: var(--color-error);
+  --border-glass: rgba(236, 226, 207, 0.22);
 
   /* Semantic */
   --color-success: var(--sage);
   --color-warning: var(--accent-yellow);
   --color-error-text: var(--color-error);
 
-  /* Shadows — tinted, not generic black */
-  --shadow-card: 0 1px 3px rgba(28, 22, 18, .06), 0 1px 2px rgba(28, 22, 18, .04);
-  --shadow-panel: 0 4px 24px rgba(28, 22, 18, .14);
-  --shadow-focus: 0 0 0 3px rgba(46, 58, 92, .16);
-  --shadow-card-hover: 0 4px 18px rgba(184, 146, 42, .18);
-  --shadow-primary: 0 2px 8px rgba(107, 18, 25, .18);
-  --shadow-primary-sm: 0 1px 4px rgba(107, 18, 25, .15);
-  --shadow-ink: 0 2px 8px rgba(46, 58, 92, .22);
-  --shadow-ink-sm: 0 1px 4px rgba(46, 58, 92, .18);
+  /* Shadows — tight, hard, stamped. No blur-clouds. */
+  --shadow-card: 0 0 0 1px rgba(236, 226, 207, 0.08);
+  --shadow-panel: 0 0 0 1px rgba(236, 226, 207, 0.12), 0 14px 34px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 2px rgba(236, 45, 61, 0.45);
+  --shadow-card-hover: 0 0 0 1px rgba(236, 226, 207, 0.22);
+  --shadow-primary: 0 0 0 1px rgba(193, 18, 31, 0.7), 0 6px 18px rgba(0, 0, 0, 0.4);
+  --shadow-primary-sm: 0 0 0 1px rgba(193, 18, 31, 0.5);
+  --shadow-ink: 0 0 0 1px rgba(236, 226, 207, 0.35);
+  --shadow-ink-sm: 0 0 0 1px rgba(236, 226, 207, 0.22);
 
   /* Overlay scrim (modals/drawers) */
-  --overlay-scrim: rgba(28, 22, 18, .30);
+  --overlay-scrim: rgba(0, 0, 0, 0.62);
 
-  /* Radii */
-  --radius-sm: 5px;
-  --radius-md: 9px;
-  --radius-lg: 13px;
+  /* Radii — brutalist: near-square. The odd 2px reads as machined, not rounded. */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
 
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  /* Motion — fast, ease-out, stark */
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Type stacks — Fraunces display serif + Space Mono ledger. */
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Space Mono', ui-monospace, 'SFMono-Regular', 'JetBrains Mono', monospace;
+  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', 'JetBrains Mono', monospace;
+
+  font-family: var(--font-sans);
 }
 
-/* ─── Dark theme — composed explicitly, not inverted ─────────────────────── */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --primary: #C2453B;
-    --primary-light: #34211D;
-    --primary-hover: #D96A5E;
-    --on-primary: #FAF8F4;
+/* ─── PARCHMENT — light invert (the landing's lights-on state) ─── */
+:root[data-theme="light"] {
+  --primary: #a80f1a;
+  --primary-light: rgba(168, 15, 26, 0.12);
+  --primary-hover: #c1121f;
+  --on-primary: #f4ecdb;
 
-    --ink: #8B9CD4;
-    --ink-hover: #A6B5DE;
-    --ink-light: #222842;
-    --ink-border: #3B4568;
-    --on-ink: #15130F;
+  --ink: #16130d;
+  --ink-hover: #000;
+  --ink-light: rgba(22, 19, 13, 0.1);
+  --ink-border: rgba(22, 19, 13, 0.32);
+  --on-ink: #f4ecdb;
 
-    --gold: #D9AE4E;
-    --gold-light: #362C18;
-    --gold-border: #6B551F;
+  --gold: #a88a1f;
+  --gold-light: rgba(168, 138, 31, 0.12);
+  --gold-border: rgba(168, 138, 31, 0.4);
 
-    --sage: #79AC77;
-    --sage-light: #1C2B1B;
-    --sage-border: #3F5A3D;
+  --sage: #66743f;
+  --sage-light: rgba(102, 116, 63, 0.12);
+  --sage-border: rgba(102, 116, 63, 0.4);
 
-    --color-error: #E2694A;
-    --color-error-bg: #34201A;
-    --color-error-border: #6B3624;
-    --color-error-hover: #F08469;
+  --color-error: #a80f1a;
+  --color-error-bg: rgba(168, 15, 26, 0.1);
+  --color-error-border: rgba(168, 15, 26, 0.45);
+  --color-error-hover: #c1121f;
 
-    --color-info: #79ABDD;
-    --color-info-bg: #1B2A38;
-    --color-info-border: #35526B;
+  --color-info: #57503f;
+  --color-info-bg: rgba(22, 19, 13, 0.07);
+  --color-info-border: rgba(22, 19, 13, 0.25);
 
-    --accent-yellow: #D9AE4E;
+  --accent-green: var(--sage);
+  --accent-green-bg: var(--sage-light);
+  --accent-green-border: var(--sage-border);
+  --accent-yellow: var(--gold);
+  --accent-yellow-bg: var(--gold-light);
+  --accent-yellow-border: var(--gold-border);
+  --accent-red: var(--color-error);
+  --accent-red-bg: var(--color-error-bg);
+  --accent-red-border: var(--color-error-border);
 
-    --bg-main: #15130F;
-    --bg-soft: #1E1A14;
-    --bg-card: #26221A;
+  --bg-main: #e8dcc3;
+  --bg-card: #f1e7d0;
+  --bg-soft: #faf2de;
 
-    --text-primary: #F1ECE2;
-    --text-secondary: #C9BFAE;
-    --text-muted: #8C8172;
+  --wash-1: rgba(168, 15, 26, 0.06);
+  --wash-2: rgba(168, 138, 31, 0.05);
+  --wash-3: rgba(22, 19, 13, 0.04);
 
-    --border-default: #3A3527;
-    --border-input: #453F30;
+  --text-primary: #16130d;
+  --text-secondary: #4a4437;
+  --text-muted: #6f695b;
+  --text-link: var(--primary);
+  --text-link-hover: #c1121f;
 
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, .4), 0 1px 2px rgba(0, 0, 0, .3);
-    --shadow-panel: 0 4px 24px rgba(0, 0, 0, .5);
-    --shadow-focus: 0 0 0 3px rgba(139, 156, 212, .28);
-    --shadow-card-hover: 0 4px 18px rgba(217, 174, 78, .2);
-    --shadow-primary: 0 2px 8px rgba(194, 69, 59, .24);
-    --shadow-primary-sm: 0 1px 4px rgba(194, 69, 59, .2);
-    --shadow-ink: 0 2px 8px rgba(139, 156, 212, .3);
-    --shadow-ink-sm: 0 1px 4px rgba(139, 156, 212, .26);
+  --border-default: rgba(22, 19, 13, 0.22);
+  --border-input: rgba(22, 19, 13, 0.4);
+  --border-focus: #a80f1a;
+  --border-glass: rgba(22, 19, 13, 0.2);
 
-    --overlay-scrim: rgba(0, 0, 0, .55);
-  }
-}
+  --color-success: var(--sage);
+  --color-warning: var(--gold);
+  --color-error-text: var(--color-error);
 
-:root[data-theme="dark"] {
-  --primary: #C2453B;
-  --primary-light: #34211D;
-  --primary-hover: #D96A5E;
-  --on-primary: #FAF8F4;
+  --shadow-card: 0 0 0 1px rgba(22, 19, 13, 0.08);
+  --shadow-panel: 0 0 0 1px rgba(22, 19, 13, 0.12), 0 14px 34px rgba(70, 55, 25, 0.25);
+  --shadow-focus: 0 0 0 2px rgba(168, 15, 26, 0.35);
+  --shadow-card-hover: 0 0 0 1px rgba(22, 19, 13, 0.2);
+  --shadow-primary: 0 0 0 1px rgba(168, 15, 26, 0.6), 0 6px 18px rgba(120, 40, 20, 0.25);
+  --shadow-primary-sm: 0 0 0 1px rgba(168, 15, 26, 0.4);
+  --shadow-ink: 0 0 0 1px rgba(22, 19, 13, 0.3);
+  --shadow-ink-sm: 0 0 0 1px rgba(22, 19, 13, 0.2);
 
-  --ink: #8B9CD4;
-  --ink-hover: #A6B5DE;
-  --ink-light: #222842;
-  --ink-border: #3B4568;
-  --on-ink: #15130F;
+  --overlay-scrim: rgba(30, 22, 8, 0.4);
 
-  --gold: #D9AE4E;
-  --gold-light: #362C18;
-  --gold-border: #6B551F;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
 
-  --sage: #79AC77;
-  --sage-light: #1C2B1B;
-  --sage-border: #3F5A3D;
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 
-  --color-error: #E2694A;
-  --color-error-bg: #34201A;
-  --color-error-border: #6B3624;
-  --color-error-hover: #F08469;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Space Mono', ui-monospace, 'SFMono-Regular', 'JetBrains Mono', monospace;
+  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', 'JetBrains Mono', monospace;
 
-  --color-info: #79ABDD;
-  --color-info-bg: #1B2A38;
-  --color-info-border: #35526B;
-
-  --accent-yellow: #D9AE4E;
-
-  --bg-main: #15130F;
-  --bg-soft: #1E1A14;
-  --bg-card: #26221A;
-
-  --text-primary: #F1ECE2;
-  --text-secondary: #C9BFAE;
-  --text-muted: #8C8172;
-
-  --border-default: #3A3527;
-  --border-input: #453F30;
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, .4), 0 1px 2px rgba(0, 0, 0, .3);
-  --shadow-panel: 0 4px 24px rgba(0, 0, 0, .5);
-  --shadow-focus: 0 0 0 3px rgba(139, 156, 212, .28);
-  --shadow-card-hover: 0 4px 18px rgba(217, 174, 78, .2);
-  --shadow-primary: 0 2px 8px rgba(194, 69, 59, .24);
-  --shadow-primary-sm: 0 1px 4px rgba(194, 69, 59, .2);
-  --shadow-ink: 0 2px 8px rgba(139, 156, 212, .3);
-  --shadow-ink-sm: 0 1px 4px rgba(139, 156, 212, .26);
-
-  --overlay-scrim: rgba(0, 0, 0, .55);
+  font-family: var(--font-sans);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--bg-main);
+  background:
+    radial-gradient(at 18% -5%, var(--wash-1) 0%, transparent 45%),
+    radial-gradient(at 85% 25%, var(--wash-2) 0%, transparent 40%),
+    var(--bg-main);
+  background-attachment: fixed;
   color: var(--text-primary);
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+
+/* ─── Docket surfaces — flat panels, hard hairline bone borders ───────────── */
+.glass {
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--border-default);
+  position: relative;
+}
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px transparent;
+}
+.glass-strong {
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--border-default);
+  position: relative;
+}
+.glass-strong::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px transparent;
 }
 
 /* ─── Browser surfaces — themed, not left to defaults ─────────────────────── */
@@ -258,6 +293,55 @@ mark.source-highlight {
   color: var(--text-primary);
   border-radius: 2px;
   padding: 0 2px;
+}
+
+/* ─── Inline numbered citation badges ([N] in answer prose) ──────────────── */
+.citation-ref {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  margin: 0 1px;
+  vertical-align: super;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  font-family: var(--font-mono);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.citation-ref:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+}
+.citation-ref:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+/* Brief flash when a citation targets its SourceCard. */
+.source-card-flash {
+  animation: source-flash 1.1s var(--ease-out);
+}
+@keyframes source-flash {
+  0%   { box-shadow: 0 0 0 0 var(--gold-border), var(--shadow-card); }
+  25%  { box-shadow: 0 0 0 3px var(--gold), var(--shadow-card-hover); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0), var(--shadow-card); }
+}
+
+/* ─── Physical press — Emil's scale(0.97) law for interactive controls ───── */
+button {
+  transition: transform var(--dur-fast) var(--ease-out),
+              background-color var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+button:not(:disabled):active {
+  transform: scale(0.97);
 }
 
 /* ─── Animations ────────────────────────────────────────────────────────── */
@@ -293,17 +377,12 @@ mark.source-highlight {
   from { width: 0; }
 }
 
-/* Gold shimmer on the wordmark */
-@keyframes wordmarkShimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
   }
   /* Loading/progress feedback stays legible — keep it slow, not frozen. */
   [data-motion="feedback"] {
@@ -316,25 +395,28 @@ mark.source-highlight {
 .prose-md p { margin: 0 0 0.65em; }
 .prose-md p:last-child { margin-bottom: 0; }
 .prose-md ul, .prose-md ol { margin: 0.4em 0 0.65em; padding-left: 1.4em; }
-.prose-md li { margin-bottom: 0.25em; }
+.prose-md li { margin-bottom: 0.3em; padding-left: 0.15em; }
+/* Gold markers — the Seal — turn enumerated clauses into a scannable ledger */
+.prose-md li::marker { color: var(--gold); font-weight: 600; }
 .prose-md strong { font-weight: 600; color: var(--text-primary); }
 .prose-md em { font-style: italic; }
 .prose-md h1, .prose-md h2, .prose-md h3 {
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.015em;
   margin: 0.8em 0 0.4em;
-  line-height: 1.25;
+  line-height: 1.3;
   color: var(--text-primary);
 }
 .prose-md h1 { font-size: 1.35em; }
 .prose-md h2 { font-size: 1.18em; }
 .prose-md h3 { font-size: 1.05em; }
 .prose-md code {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   background: var(--bg-soft);
   border: 1px solid var(--border-default);
   padding: 0.1em 0.35em;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.87em;
 }
 .prose-md pre {
@@ -353,7 +435,6 @@ mark.source-highlight {
   color: var(--text-secondary);
   background: var(--gold-light);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-style: italic;
 }
 .prose-md a { color: var(--primary); text-decoration: underline; }
 .prose-md a:hover { color: var(--primary-hover); }
@@ -361,8 +442,10 @@ mark.source-highlight {
 
 /* ─── Utility ───────────────────────────────────────────────────────────── */
 .font-display {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 .font-mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }

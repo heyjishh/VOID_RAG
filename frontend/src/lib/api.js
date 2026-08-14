@@ -4,9 +4,101 @@ export const API_BASE = '/api/v1'
 
 const client = axios.create({ baseURL: API_BASE, timeout: 60000 })
 
+// Attach the server auth token to every call when a session exists.
+client.interceptors.request.use(config => {
+  try {
+    const token = localStorage.getItem('juryai.token')
+    if (token) config.headers.Authorization = `Bearer ${token}`
+  } catch (e) {}
+  return config
+})
+
+function authError(err) {
+  const detail =
+    err?.response?.data?.detail ||
+    (Array.isArray(err?.response?.data?.detail)
+      ? err.response.data.detail.map(d => d.msg).join(' · ')
+      : undefined)
+  const message =
+    typeof detail === 'string'
+      ? detail
+      : err?.message === 'Network Error'
+        ? 'Cannot reach the research server. It may be offline.'
+        : err?.response?.status
+          ? `Request failed (${err.response.status}).`
+          : 'Something went wrong. Please try again.'
+  const e = new Error(message)
+  e.status = err?.response?.status
+  throw e
+}
+
+export const authApi = {
+  async sendOtp(payload) {
+    try {
+      const { data } = await client.post('/auth/otp/send', payload)
+      return data
+    } catch (err) {
+      throw authError(err)
+    }
+  },
+  async verifyOtp(payload) {
+    try {
+      const { data } = await client.post('/auth/otp/verify', payload)
+      return data
+    } catch (err) {
+      throw authError(err)
+    }
+  },
+  async register(payload) {
+    try {
+      const { data } = await client.post('/auth/register', payload)
+      return data
+    } catch (err) {
+      throw authError(err)
+    }
+  },
+  async login(payload) {
+    try {
+      const { data } = await client.post('/auth/login', payload)
+      return data
+    } catch (err) {
+      throw authError(err)
+    }
+  },
+  async forgot(payload) {
+    try {
+      const { data } = await client.post('/auth/forgot', payload)
+      return data
+    } catch (err) {
+      throw authError(err)
+    }
+  },
+  async reset(payload) {
+    try {
+      const { data } = await client.post('/auth/reset', payload)
+      return data
+    } catch (err) {
+      throw authError(err)
+    }
+  },
+  async logout(token) {
+    try {
+      await client.post('/auth/logout', {}, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    } catch (e) {
+      // Best-effort server-side revoke; clearing local state is what matters.
+    }
+  },
+}
+
 export async function sendChat(question, conversationId = null) {
   const { data } = await client.post('/chat', { question, conversation_id: conversationId })
   // data.source_chunks: [{text, source, page, score, verified}]
+  return data
+}
+
+export async function draftDocument(brief) {
+  const { data } = await client.post('/draft', { brief })
+  // data.content: Markdown string
   return data
 }
 

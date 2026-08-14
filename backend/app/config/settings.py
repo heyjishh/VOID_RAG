@@ -120,6 +120,13 @@ class Settings(BaseSettings):
     EMBED_DIM: int = 384
     EMBED_CACHE_SIZE: int = 128
 
+    # Cross-encoder token budget per (query, text) pair. The tokenizer's
+    # model default is 8192 tokens — on CPU, 8 web sources × 8k tokens took
+    # ~2 minutes of dead air. 512 tokens (~380 words) keeps ranking fidelity
+    # for legal evidence while keeping a full web_search under ~20 s.
+    RERANKER_MAX_LENGTH: int = 512
+    RERANKER_BATCH_SIZE: int = 8
+
     # Free-LLM Gateway (24+ providers, OpenAI-compatible)
     GATEWAY_URL: str = "http://localhost:8080/v1"
     GATEWAY_KEY: Optional[str] = None
@@ -158,7 +165,11 @@ class Settings(BaseSettings):
 
     HYBRID_ALPHA: float = 0.5
     TOP_K_RETRIEVE: int = 20
-    TOP_K_FINAL: int = 5
+    # Reranked chunks handed to the answer prompt. 5 starved multi-issue
+    # questions (each sub-issue competes for the same 5 slots); 10 covers
+    # ~2-3 distinct issues at 3-4 chunks each while staying well under
+    # TOP_K_RETRIEVE's candidate pool and the LLM context/latency budget.
+    TOP_K_FINAL: int = 10
     CACHE_TTL_SECONDS: int = 1800
 
     # Document-view basename->{key,bucket} index cache (Valkey-backed, best-effort).
@@ -172,6 +183,12 @@ class Settings(BaseSettings):
     # MultiS3Loader's local_root (a fallback source of truth when no S3 bucket
     # is configured at all); this is a cache of things already fetched from S3.
     DOCUMENT_CACHE_DIR: str = "/tmp/juryai-document-cache"
+
+    # Interact feature: per-session store for user-uploaded documents (see
+    # app.core.retrieval.session_store) — kept fully separate from the
+    # DOCUMENT_CACHE_DIR/Qdrant global corpus so uploads never leak between
+    # sessions or pollute /ask's search results.
+    SESSION_DOC_STORE_DIR: str = "/tmp/juryai-session-docs"
 
     # Web search scraping backends
     WIGOLO_URL: str = "http://127.0.0.1:3333"
@@ -260,6 +277,42 @@ class Settings(BaseSettings):
         if self.BRAVE_SEARCH_API_KEY:
             return "brave"
         return "duckduckgo"
+
+
+# ── Auth / OTP ──────────────────────────────────────────────────────────
+    # Dev fallback: when no email/SMS provider is configured, OTPs are returned
+    # in the API response (and logged) so the full auth flow works offline. Set
+    # AUTH_DEV_RETURN_OTP=false once real credentials are attached in production.
+    AUTH_DEV_RETURN_OTP: bool = True
+    AUTH_OTP_LENGTH: int = 6
+    AUTH_OTP_TTL_SECONDS: int = 600          # 10 minutes
+    AUTH_OTP_MAX_ATTEMPTS: int = 5
+    AUTH_OTP_MIN_INTERVAL_SECONDS: int = 30  # throttle re-sends per target
+    AUTH_SESSION_TTL_SECONDS: int = 604800   # 7 days
+    AUTH_RESET_TOKEN_TTL_SECONDS: int = 600  # 10 minutes
+
+    # SMTP for email OTPs / reset — unset to fall back to dev-mode delivery.
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = None
+    SMTP_STARTTLS: bool = True
+
+    # SMS gateway for phone OTPs — a generic JSON POST endpoint. When unset,
+    # phone OTPs fall back to dev-mode delivery (returned in the response).
+    SMS_GATEWAY_URL: Optional[str] = None
+    SMS_GATEWAY_KEY: Optional[str] = None
+    SMS_FROM_NAME: str = "JuryAI"
+
+    @property
+    def auth_provider_status(self) -> dict:
+        """Which delivery channels are wired. Drives the API's delivery field."""
+        return {
+            "email": bool(self.SMTP_HOST and self.SMTP_FROM),
+            "sms": bool(self.SMS_GATEWAY_URL),
+            "dev": bool(self.AUTH_DEV_RETURN_OTP),
+        }
 
 
 settings = Settings()

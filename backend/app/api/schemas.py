@@ -7,14 +7,23 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     use_web_search: bool = False
     web_search_max_results: int = 5
+    # "ask" (default) searches the global corpus; "interact" scopes retrieval
+    # to ONLY session_id's uploaded documents (app.core.retrieval.session_store).
+    mode: str = "ask"
+    session_id: Optional[str] = None
 
 
 class CitationOut(BaseModel):
     quote: str
     verified: bool
+    # Whether this item's [N] marker literally appears in the answer text —
+    # distinct from `verified` (claim-level groundedness).
+    cited: bool = False
     source: str
     page: int
     content_hash: str = ""
+    # 1-based citation number — see CitationResult in app.core.graph.state.
+    index: int = 0
 
 
 class SourceChunkOut(BaseModel):
@@ -23,8 +32,16 @@ class SourceChunkOut(BaseModel):
     page: int
     score: float
     verified: bool = False
+    # Whether this chunk's [N] marker literally appears in the answer — lets
+    # the frontend report "N retrieved, M cited" alongside groundedness.
+    cited: bool = False
     domain: str = "internal"  # "internal" (corpus) or "web" — drives frontend source split
     url: Optional[str] = None  # navigable link, only ever set for domain == "web"
+    # 1-based position in the evidence list the answer prompt numbered — the
+    # same number a [N] marker in the answer and citations[N-1] refer to.
+    # Chunks can be dropped from this list (empty text) without shifting the
+    # ones that remain, so the frontend must key off this, not array position.
+    index: int = 0
 
 
 # Alias used in SSE source_chunk events
@@ -69,6 +86,14 @@ class ChatResponse(BaseModel):
     verification: Optional[VerificationOut] = None
 
 
+class DraftRequest(BaseModel):
+    brief: str
+
+
+class DraftResponse(BaseModel):
+    content: str
+
+
 class IngestRequest(BaseModel):
     prefix_filter: str = ""
     sync_only: bool = True  # True = incremental (skip already ingested)
@@ -100,3 +125,80 @@ class SyncStatusResponse(BaseModel):
     started_at: Optional[float] = None
     finished_at: Optional[float] = None
     error: Optional[str] = None
+
+
+# ── Auth ────────────────────────────────────────────────────────────────
+class OtpSendRequest(BaseModel):
+    via: str  # "email" | "phone"
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    intent: str  # "signup" | "login" | "reset"
+    name: Optional[str] = None  # required for signup
+
+
+class ForgotRequest(BaseModel):
+    via: str  # "email" | "phone"
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class OtpSendResponse(BaseModel):
+    sent: bool
+    delivery: str  # "email" | "sms" | "dev" | "unavailable"
+    target: str = ""  # masked recipient shown to the user
+    dev_otp: Optional[str] = None  # only present in dev/delivery mode
+    expires_in: int = 600
+    exists: bool = False
+
+
+class OtpVerifyRequest(BaseModel):
+    via: str  # "email" | "phone"
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    otp: str
+    intent: str  # signup | login | reset
+    name: Optional[str] = None  # required for signup
+
+
+class AuthUserOut(BaseModel):
+    id: str
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    org: str = ""
+    email_verified: bool = False
+    phone_verified: bool = False
+
+
+class OtpVerifySuccessOut(BaseModel):
+    ok: bool
+    intent: str
+    user: Optional[AuthUserOut] = None  # signup/login
+    token: Optional[str] = None         # session token (signup/login)
+    reset_token: Optional[str] = None   # one-time (reset intent) — pass to /auth/reset
+
+
+class RegisterRequest(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    password: str
+
+
+class ResetRequest(BaseModel):
+    via: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    otp: str
+    new_password: str
+
+
+class AuthResponse(BaseModel):
+    user: AuthUserOut
+    token: str

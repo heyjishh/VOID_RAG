@@ -8,7 +8,25 @@ from app.core.retrieval.authority_scorer import get_authority_scorer
 
 class Reranker:
     def __init__(self, model_name: str | None = None):
-        self._model = CrossEncoder(model_name or settings.RERANKER_MODEL)
+        # max_length caps the cross-encoder context at RERANKER_MAX_LENGTH
+        # tokens per pair — without it the tokenizer defaults to the model's
+        # 8192-token window, which costs minutes of CPU inference for web
+        # evidence. Ranking long legal text only needs a faithful window,
+        # not the full document.
+        self._model = CrossEncoder(
+            model_name or settings.RERANKER_MODEL,
+            max_length=settings.RERANKER_MAX_LENGTH,
+        )
+        self._batch_size = settings.RERANKER_BATCH_SIZE
+
+    def _truncate(self, text: str) -> str:
+        """Rough pre-truncation to the token budget (~3.6 chars/token).
+
+        Keeps the raw text for citation/evidence, but ranking only reads the
+        leading window, cutting CPU time ~8× on multi-hundred-KB documents.
+        """
+        budget = settings.RERANKER_MAX_LENGTH * 4
+        return text if len(text) <= budget else text[:budget]
 
     def score_pairs(self, query: str, texts: list[str]) -> list[float]:
         """Raw cross-encoder relevance scores for (query, text) pairs, in
@@ -18,7 +36,8 @@ class Reranker:
         """
         if not texts:
             return []
-        return [float(s) for s in self._model.predict([[query, t] for t in texts])]
+        pairs = [[query, self._truncate(t)] for t in texts]
+        return [float(s) for s in self._model.predict(pairs, batch_size=self._batch_size)]
 
     def rerank(self, query: str, chunks: list[ScoredChunk], top_k: int | None = None) -> list[ScoredChunk]:
         if not chunks:

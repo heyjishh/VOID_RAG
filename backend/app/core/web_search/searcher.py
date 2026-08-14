@@ -239,7 +239,11 @@ async def _duckduckgo(query: str, max_results: int) -> list[WebEvidence]:
 # Public API
 # ---------------------------------------------------------------------------
 
-async def web_search(query: str, max_results: int = 5) -> list[WebEvidence]:
+async def web_search(
+    query: str,
+    max_results: int = 5,
+    on_step: Optional[callable] = None,
+) -> list[WebEvidence]:
     """Search the web and return validated, authority-scored evidence.
 
     Provider priority
@@ -255,7 +259,16 @@ async def web_search(query: str, max_results: int = 5) -> list[WebEvidence]:
     provider's own keyword-matching score with genuine semantic relevance),
     then ``detect_source_type`` and ``AuthorityScorer`` populate
     ``source_type`` and ``authority_score``.
+
+    ``on_step(dict)`` is invoked as phases complete (provider chosen, sources
+    fetched, scoring) so callers can surface real-time progress on the
+    reasoning timeline instead of one static "searching…" step covering the
+    whole pipeline.
     """
+    def _report(step: str, detail: str, **extra) -> None:
+        if on_step:
+            on_step({"step": step, "detail": detail, **extra})
+
     results: list[WebEvidence] = []
 
     # 1. Wigolo (self-hosted, highest priority) — generic pass plus a
@@ -263,6 +276,7 @@ async def web_search(query: str, max_results: int = 5) -> list[WebEvidence]:
     # government pass is Wigolo-only: only Wigolo's /v1/search supports
     # include_domains, so Tavily/Brave/DuckDuckGo have no equivalent.
     if await _wigolo_available():
+        _report("web_search_provider", "Searching the web via the self-hosted daemon")
         results, government_results = await asyncio.gather(
             _wigolo(query, max_results),
             _wigolo_government_search(query, settings.WEB_SEARCH_GOVERNMENT_MAX_RESULTS),
@@ -277,19 +291,28 @@ async def web_search(query: str, max_results: int = 5) -> list[WebEvidence]:
 
     # 2. Tavily
     if not results and settings.TAVILY_API_KEY:
+        _report("web_search_provider", "Searching via Tavily")
         results = await _tavily(query, max_results)
 
     # 3. Brave
     if not results and settings.BRAVE_SEARCH_API_KEY:
+        _report("web_search_provider", "Searching via Brave")
         results = await _brave(query, max_results)
 
     # 4. DuckDuckGo (always-available free fallback)
     if not results:
+        _report("web_search_provider", "Searching via DuckDuckGo")
         results = await _duckduckgo(query, max_results)
 
     # Fetch full content via source validator fallback chain
+    if results:
+        _report(
+            "web_search_fetch",
+            f"Fetching full text of {len(results)} web sources",
+            total=len(results),
+        )
     validator = SourceValidator()
-    results = await validator.validate(results)
+    results = await validator.validate(results, on_step=on_step)
 
     # Assign citation IDs by final list position (0-based)
     for i, ev in enumerate(results):
@@ -300,6 +323,11 @@ async def web_search(query: str, max_results: int = 5) -> list[WebEvidence]:
     # used for internal chunks — otherwise authority scoring below trusts
     # whatever heuristic the search provider used internally.
     if results:
+        _report(
+            "web_search_scoring",
+            f"Scoring {len(results)} sources against your question",
+            total=len(results),
+        )
         relevance_scores = get_reranker().score_pairs(
             query, [ev.get("content", "") for ev in results]
         )

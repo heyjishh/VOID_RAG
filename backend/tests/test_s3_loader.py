@@ -7,6 +7,7 @@ import io
 from unittest.mock import MagicMock, patch, call
 import pytest
 
+from app.config.settings import settings
 from app.core.ingestion.s3_loader import MultiS3Loader, S3Loader
 
 
@@ -121,8 +122,12 @@ def test_download_without_bucket_hint_tries_in_order():
 # S3Loader — backward-compat single-bucket alias
 # ---------------------------------------------------------------------------
 
-def test_s3_loader_single_bucket_compat(tmp_path):
+def test_s3_loader_single_bucket_compat(tmp_path, monkeypatch):
     """S3Loader(local_root=...) still works exactly like the original."""
+    # Isolate from a live S3_BUCKET_NAME in the local .env so the loader takes
+    # the local-filesystem fallback path instead of hitting real S3.
+    monkeypatch.setattr(settings, "S3_BUCKET_NAME", None)
+    monkeypatch.setattr(settings, "S3_BUCKET_NAMES", None)
     (tmp_path / "legacy.pdf").write_bytes(b"%PDF-legacy")
 
     loader = S3Loader(local_root=str(tmp_path))

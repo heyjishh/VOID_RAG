@@ -6,7 +6,7 @@ import { prefersReducedMotion } from '../lib/motion.js'
 import ThemeToggle from './ThemeToggle.jsx'
 import ConnectorsPanel from './ConnectorsPanel.jsx'
 
-export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearch }) {
+export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearch, user, onLogout }) {
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [syncInfo, setSyncInfo] = useState(null)
@@ -74,6 +74,8 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
           width: '380px',
           height: '100%',
           background: 'var(--bg-card)',
+          backdropFilter: 'blur(28px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(180%)',
           borderLeft: '1px solid var(--border-default)',
           boxShadow: 'var(--shadow-panel)',
           padding: '24px',
@@ -83,7 +85,7 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
         {/* Header */}
         <div className="flex justify-between items-center">
           <h2
-            className="font-display m-0 italic"
+            className="font-display m-0"
             style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}
           >
             Settings
@@ -106,6 +108,37 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
         </div>
 
         <div style={{ width: '100%', height: '1px', background: 'var(--border-default)' }} />
+
+        {/* Account */}
+        {user && (
+          <section>
+            <SectionTitle>Account</SectionTitle>
+            <div
+              className="flex items-center gap-3 rounded-[var(--radius-sm)] p-3"
+              style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-default)' }}
+            >
+              <span
+                className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0"
+                style={{ background: 'var(--ink)', color: 'var(--on-ink)' }}
+              >
+                {(user.name || user.email || 'R').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="m-0 text-[12.5px] font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{user.name}</p>
+                <p className="m-0 mt-0.5 text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{user.email}</p>
+              </div>
+              <button
+                onClick={onLogout}
+                className="text-[11.5px] font-semibold px-2.5 py-1.5 rounded-[6px] transition-colors"
+                style={{ border: '1px solid var(--color-error-border)', background: 'transparent', color: 'var(--color-error)', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-error-bg)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                Sign out
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Preferences */}
         <section>
@@ -168,7 +201,7 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
                 <span style={{ color: 'var(--text-secondary)' }}>
                   {syncInfo.processed} / {syncInfo.total} processed
                 </span>
-                <span style={{ color: 'var(--ink)', fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                <span style={{ color: 'var(--ink)', fontWeight: 700, fontFamily: "var(--font-mono)" }}>
                   {syncInfo.total ? Math.round((syncInfo.processed / syncInfo.total) * 100) : 0}%
                 </span>
               </div>
@@ -186,7 +219,7 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
                   margin: '8px 0 0',
                   fontSize: '11px',
                   color: 'var(--text-muted)',
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "var(--font-mono)",
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -242,7 +275,7 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
             <p style={{ margin: '0 0 6px', color: 'var(--text-primary)', fontWeight: 500 }}>
               Free gateway (auto-configured)
             </p>
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontFamily: "var(--font-mono)", fontSize: '11px' }}>
               GATEWAY_URL=http://localhost:8080/v1<br />
               GATEWAY_KEY → auto-detected
             </p>
@@ -301,7 +334,7 @@ function SyncRow({ label, value, valueColor }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
       <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-      <span style={{ fontWeight: 600, color: valueColor || 'var(--text-primary)', fontFamily: "'JetBrains Mono', monospace" }}>
+      <span style={{ fontWeight: 600, color: valueColor || 'var(--text-primary)', fontFamily: "var(--font-mono)" }}>
         {value ?? '—'}
       </span>
     </div>
@@ -328,7 +361,7 @@ function ActionButton({ children, onClick, disabled, primary = false }) {
         fontWeight: 600,
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'all 0.15s',
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "var(--font-sans)",
         boxShadow: primary && !disabled ? 'var(--shadow-primary-sm)' : 'none',
       }}
     >

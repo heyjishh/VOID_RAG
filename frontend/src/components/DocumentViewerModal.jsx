@@ -83,7 +83,7 @@ function buildTextMap(spans) {
 function MutedNote({ children }) {
   return (
     <p
-      className="m-0 text-[11.5px] text-center leading-relaxed font-display italic"
+      className="m-0 text-[11.5px] text-center leading-relaxed font-display"
       style={{ color: 'var(--text-muted)' }}
     >
       {children}
@@ -102,7 +102,7 @@ function NavButton({ children, onClick, disabled }) {
         color: disabled ? 'var(--text-muted)' : 'var(--ink)',
         border: `1px solid ${disabled ? 'var(--border-default)' : 'var(--ink-border)'}`,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "var(--font-sans)",
       }}
     >
       {children}
@@ -249,14 +249,14 @@ export default function DocumentViewerModal({ source, page, text, onClose }) {
           </svg>
           <p
             className="m-0 flex-1 min-w-0 truncate text-[13px] font-semibold"
-            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", color: 'var(--text-primary)' }}
+            style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-primary)' }}
             title={source}
           >
             {title}
           </p>
           <span
             className="text-[10px] tabular-nums flex-shrink-0"
-            style={{ color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}
+            style={{ color: 'var(--text-muted)', fontFamily: "var(--font-mono)" }}
           >
             Page {pageNumber}{numPages ? ` of ${numPages}` : ''}
           </span>

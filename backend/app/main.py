@@ -33,10 +33,12 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    from app.api.v1 import chat, ingest, documents
+    from app.api.v1 import chat, ingest, documents, draft, auth
     app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
     app.include_router(ingest.router, prefix="/api/v1", tags=["ingest"])
     app.include_router(documents.router, prefix="/api/v1", tags=["documents"])
+    app.include_router(draft.router, prefix="/api/v1", tags=["draft"])
+    app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 
     @app.get("/health")
     async def health():

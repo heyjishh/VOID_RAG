@@ -21,7 +21,7 @@ from app.core.graph.workflow import get_workflow, get_streaming_workflow
 from app.core.graph.state import JuryAIState
 from app.core.graph.verifier import verify_answer, _build_evidence_text
 from app.core.graph.gate import gate_answer
-from app.core.retrieval.citation import derive_citations, verified_content_hashes
+from app.core.retrieval.citation import derive_citations, verified_content_hashes, cited_indices
 from app.core.llm.provider import get_llm
 from app.core.cache import answer_cache_get, answer_cache_set
 from app.core.memory import load_history, append_turn
@@ -54,6 +54,14 @@ def _client_id(http_request: Request) -> str:
     return http_request.client.host if http_request.client else "unknown"
 
 
+def _validate_mode(request: ChatRequest) -> None:
+    """Interact mode needs a session_id to scope retrieval to — reject early
+    with a 400 rather than silently falling through to an empty/global
+    search that would defeat the per-user isolation the feature promises."""
+    if request.mode == "interact" and not request.session_id:
+        raise HTTPException(status_code=400, detail="session_id is required when mode='interact'")
+
+
 async def _enforce_rate_limit(http_request: Request) -> None:
     result = await check_rate_limit(_client_id(http_request))
     if not result.allowed:
@@ -82,14 +90,17 @@ def _build_source_chunks(result: dict) -> tuple[list[SourceChunkOut], set[str]]:
             score=round(chunk.get("score", 0.0), 4),
             verified=bool(chunk.get("content_hash")) and chunk.get("content_hash") in verified_hashes,
             domain="internal",
+            index=i,
         )
-        for chunk in result.get("legal_chunks", [])
+        for i, chunk in enumerate(result.get("legal_chunks", []), 1)
         if chunk.get("text") and chunk.get("source") is not None
     ]
     return chunks, verified_hashes
 
 
-def _source_chunks_from_evidence(evidence: list[dict], verified_hashes: set[str]) -> list[SourceChunkOut]:
+def _source_chunks_from_evidence(
+    evidence: list[dict], verified_hashes: set[str], cited_idx: set[int] = frozenset()
+) -> list[SourceChunkOut]:
     """Build the final, post-verification SourceChunkOut list for an evidence list.
 
     Shared by the streaming path's end-of-turn correction and the non-streaming
@@ -104,7 +115,7 @@ def _source_chunks_from_evidence(evidence: list[dict], verified_hashes: set[str]
     instead of being silently dropped for having the "wrong" key names.
     """
     chunks: list[SourceChunkOut] = []
-    for item in evidence:
+    for i, item in enumerate(evidence, 1):
         text = item.get("text") or item.get("content") or ""
         if not text:
             continue
@@ -119,10 +130,16 @@ def _source_chunks_from_evidence(evidence: list[dict], verified_hashes: set[str]
                 page=item.get("page", 0),
                 score=round(item.get("final_score", item.get("score", 0.0)), 4),
                 verified=bool(item.get("content_hash")) and item.get("content_hash") in verified_hashes,
+                cited=i in cited_idx,
                 domain=domain,
                 # Internal chunks never have a genuine navigable URL — the
                 # source/title fallback above is a display label, not a link.
                 url=item.get("url") if domain == "web" else None,
+                # i is this item's 1-based position in `evidence` — the same
+                # list/order generate_answer_node numbers [N] markers from and
+                # derive_citations() builds citations[] from. Skipped
+                # (empty-text) items above don't shift it.
+                index=i,
             )
         )
     return chunks
@@ -135,10 +152,17 @@ def _source_chunks_from_evidence(evidence: list[dict], verified_hashes: set[str]
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, http_request: Request):
     await _enforce_rate_limit(http_request)
+    _validate_mode(request)
     conversation_id = request.conversation_id or str(uuid.uuid4())
 
     # Answer cache: identical (normalized) question + web flag → replay instantly.
-    cached = await answer_cache_get(request.question, request.use_web_search, scope="post")
+    # Skipped for interact mode — the cache key doesn't carry session_id, so a
+    # shared key would leak one session's answer (grounded in their uploads)
+    # to any other session asking the same question text.
+    cached = (
+        await answer_cache_get(request.question, request.use_web_search, scope="post")
+        if request.mode != "interact" else None
+    )
     if cached is not None:
         cached["conversation_id"] = conversation_id
         cached_citations = cached.get("citations", [])
@@ -172,6 +196,8 @@ async def chat(request: ChatRequest, http_request: Request):
         "answer": "",
         "error": None,
         "use_web_search": request.use_web_search,
+        "mode": request.mode,
+        "session_id": request.session_id,
     }
     result = await graph.ainvoke(state)
 
@@ -190,7 +216,7 @@ async def chat(request: ChatRequest, http_request: Request):
         )
         if gated.answer != answer:
             answer = gated.answer
-            citations_raw = derive_citations(gated.verification, evidence)
+            citations_raw = derive_citations(gated.verification, evidence, answer)
             if gated.model_provider:
                 model_provider, model_name = gated.model_provider, gated.model_name
         verification = dict(gated.verification)
@@ -199,7 +225,7 @@ async def chat(request: ChatRequest, http_request: Request):
 
     verified_hashes = verified_content_hashes(citations_raw)
     citations = [CitationOut(**c) for c in citations_raw]
-    source_chunks = _source_chunks_from_evidence(evidence, verified_hashes)
+    source_chunks = _source_chunks_from_evidence(evidence, verified_hashes, cited_indices(citations_raw))
 
     response = ChatResponse(
         answer=answer,
@@ -212,9 +238,10 @@ async def chat(request: ChatRequest, http_request: Request):
     )
 
     await append_turn(request.conversation_id, request.question, answer)
-    await answer_cache_set(
-        request.question, request.use_web_search, response.model_dump(), scope="post"
-    )
+    if request.mode != "interact":
+        await answer_cache_set(
+            request.question, request.use_web_search, response.model_dump(), scope="post"
+        )
 
     schedule_record_turn(
         build_turn_record(
@@ -260,7 +287,12 @@ async def _stream_generator(request: ChatRequest, client_id: str) -> AsyncGenera
     })
 
     # Answer cache: replay a cached answer as SSE without re-running the pipeline.
-    cached = await answer_cache_get(request.question, request.use_web_search, scope="stream")
+    # Skipped for interact mode — see _validate_mode's docstring: the cache key
+    # doesn't carry session_id, so sharing it would leak across sessions.
+    cached = (
+        await answer_cache_get(request.question, request.use_web_search, scope="stream")
+        if request.mode != "interact" else None
+    )
     if cached is not None:
         cached_chunks = cached.get("source_chunks", [])
         for sc in cached_chunks:
@@ -316,6 +348,8 @@ async def _stream_generator(request: ChatRequest, client_id: str) -> AsyncGenera
         # Streaming mode: generate_answer_node stores the prompt but skips LLM;
         # the SSE generator calls get_llm().astream() for real token streaming.
         "streaming": True,
+        "mode": request.mode,
+        "session_id": request.session_id,
     }
 
     try:
@@ -430,9 +464,11 @@ async def _stream_generator(request: ChatRequest, client_id: str) -> AsyncGenera
 
         # Final, post-verification citations/sources — the unified signal,
         # now that the claim-level verdict for the (possibly gated) answer exists.
-        final_citations = derive_citations(verification, verify_evidence)
+        final_citations = derive_citations(verification, verify_evidence, full_answer)
         verified_hashes = verified_content_hashes(final_citations)
-        final_source_chunks = _source_chunks_from_evidence(verify_evidence, verified_hashes)
+        final_source_chunks = _source_chunks_from_evidence(
+            verify_evidence, verified_hashes, cited_indices(final_citations)
+        )
 
         yield _sse("done", {
             "conversation_id": conversation_id,
@@ -466,6 +502,7 @@ async def _stream_generator(request: ChatRequest, client_id: str) -> AsyncGenera
         # Persist + cache the FINAL (post-gate) answer. Skip empties/blocked.
         if full_answer.strip() and not verification.get("blocked"):
             await append_turn(request.conversation_id, request.question, full_answer)
+        if full_answer.strip() and not verification.get("blocked") and request.mode != "interact":
             await answer_cache_set(
                 request.question,
                 request.use_web_search,
@@ -491,6 +528,7 @@ async def _stream_generator(request: ChatRequest, client_id: str) -> AsyncGenera
 async def chat_stream(request: ChatRequest, http_request: Request) -> StreamingResponse:
     """SSE endpoint — streams reasoning steps, source chunks, answer tokens, and done."""
     await _enforce_rate_limit(http_request)
+    _validate_mode(request)
     return StreamingResponse(
         content=_stream_generator(request, _client_id(http_request)),
         media_type="text/event-stream",
