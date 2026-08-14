@@ -6,6 +6,7 @@ from app.core.graph.state import JuryAIState
 from app.core.graph.intent import classify_intent
 from app.core.graph.nodes import (
     legal_retrieve_node,
+    interact_retrieve_node,
     web_search_node,
     generate_answer_node,
     evidence_merge_node,
@@ -25,9 +26,14 @@ async def route_and_retrieve(state: JuryAIState) -> dict:
     deterministic order (internal first, web second).
     """
     intent = classify_intent(state["question"])
+    interact_mode = state.get("mode") == "interact"
 
-    tasks = [legal_retrieve_node(state)]
-    if state.get("use_web_search", False):
+    # Interact mode is scoped strictly to the user's own uploaded documents —
+    # never fan out to the global corpus or web search, regardless of
+    # use_web_search, so the answer can't be grounded in another user's data
+    # or the wider web.
+    tasks = [interact_retrieve_node(state) if interact_mode else legal_retrieve_node(state)]
+    if not interact_mode and state.get("use_web_search", False):
         tasks.append(web_search_node(state))
 
     results = await asyncio.gather(*tasks)

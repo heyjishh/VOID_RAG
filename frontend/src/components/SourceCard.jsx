@@ -99,7 +99,8 @@ export default function SourceCard({ chunk, question, rank }) {
     <>
       <Wrapper
         ref={cardRef}
-        className={`doc-card block rounded-[var(--radius-md)] p-3.5 ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+        data-source-index={rank}
+        className={`doc-card block rounded-[2px] text-decoration-none ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-default)',
@@ -110,95 +111,86 @@ export default function SourceCard({ chunk, question, rank }) {
         onMouseLeave={() => handleHover(false)}
         {...interactionProps}
       >
-        {/* Header */}
-        <div className="flex items-start gap-2.5 mb-2">
-          {/* Retrieval rank — array order from the backend IS the rank */}
+        {/* Row 1: rank · title · tier */}
+        <div className="flex items-center gap-2.5">
           <div
-            className="w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0 mt-0.5 text-[11px] font-bold tabular-nums"
-            style={{ background: tier.bg, border: `1px solid ${tier.border}`, color: tier.color, fontFamily: "'JetBrains Mono', monospace" }}
+            className="w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0 text-[11px] font-bold tabular-nums"
+            style={{ background: tier.bg, border: `1px solid ${tier.border}`, color: tier.color, fontFamily: "var(--font-mono)" }}
           >
             {rank != null ? rank + 1 : '–'}
           </div>
 
-          {/* Title and meta */}
-          <div className="flex-1 min-w-0">
-            <p
-              className="m-0 text-[12.5px] font-semibold truncate leading-snug"
-              style={{
-                color: 'var(--text-primary)',
-                fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontWeight: 600,
-              }}
-              title={chunk.source || title}
-            >
-              {title}
-            </p>
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              {chunk.page != null && (
-                <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>
-                  p.{chunk.page + 1}
-                </span>
-              )}
-              {isVerified && (
-                <span
-                  className="inline-flex items-center gap-[3px] text-[9.5px] font-semibold px-1.5 py-[1px] rounded-[3px] uppercase"
-                  style={{ background: 'var(--sage-light)', color: 'var(--sage)', letterSpacing: '0.04em' }}
-                  title="This passage's text was matched to a claim in the answer"
-                >
-                  <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  Verified
-                </span>
-              )}
-            </div>
-          </div>
+          <p
+            className="m-0 flex-1 min-w-0 text-[12.5px] font-semibold truncate leading-snug"
+            style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}
+            title={chunk.source || title}
+          >
+            {title}
+          </p>
 
-          {/* Relevance badge */}
-          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            <span
-              className="text-[9.5px] font-bold px-1.5 py-[2px] rounded-[3px] uppercase tracking-wide whitespace-nowrap"
-              style={{
-                background: tier.bg,
-                color: tier.color,
-                border: `1px solid ${tier.border}`,
-                letterSpacing: '0.03em',
-              }}
-            >
-              {tier.label}
-            </span>
-            <span
-              className="text-[10px] tabular-nums"
-              style={{ color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              {scorePercent}% match
-            </span>
-          </div>
+          <span
+            className="text-[9.5px] font-bold px-1.5 py-[2px] rounded-[3px] uppercase whitespace-nowrap flex-shrink-0"
+            style={{
+              background: tier.bg,
+              color: tier.color,
+              border: `1px solid ${tier.border}`,
+              letterSpacing: '0.03em',
+            }}
+          >
+            {tier.label}
+          </span>
         </div>
 
-        {/* Relevance score bar */}
-        <div
-          className="h-[2px] rounded-full mb-2.5 overflow-hidden"
-          style={{ background: 'var(--border-default)' }}
-        >
-          <div
-            ref={barRef}
-            className="h-full rounded-full"
-            style={{
-              width: `${scorePercent}%`,
-              background: tier.bar,
-              animation: 'fillBar 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          />
+        {/* Row 2: metadata strip */}
+        <div className="flex items-center gap-2 mt-1.5 pl-[26px]">
+          {chunk.page != null && (
+            <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted)', fontFamily: "var(--font-mono)" }}>
+              p.{chunk.page + 1}
+            </span>
+          )}
+          <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted)', fontFamily: "var(--font-mono)" }}>
+            {scorePercent}% match
+          </span>
+          <div className="flex-1 h-[2px] rounded-full overflow-hidden" style={{ background: 'var(--border-default)' }}>
+            <div
+              ref={barRef}
+              className="h-full rounded-full"
+              style={{
+                width: `${scorePercent}%`,
+                background: tier.bar,
+                animation: 'fillBar 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+            />
+          </div>
+          {isVerified && (
+            <span
+              className="inline-flex items-center gap-[3px] text-[9.5px] font-semibold px-1.5 py-[1px] rounded-[3px] uppercase flex-shrink-0"
+              style={{ background: 'var(--sage-light)', color: 'var(--sage)', letterSpacing: '0.04em' }}
+              title="This passage's text was matched to a claim in the answer"
+            >
+              <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Verified
+            </span>
+          )}
+          {!isVerified && chunk.cited && (
+            <span
+              className="inline-flex items-center gap-[3px] text-[9.5px] font-semibold px-1.5 py-[1px] rounded-[3px] uppercase flex-shrink-0"
+              style={{ background: 'var(--gold-light)', color: 'var(--gold)', letterSpacing: '0.04em' }}
+            >
+              Cited
+            </span>
+          )}
         </div>
 
         {/* Excerpt */}
         <p
-          className="m-0 text-[12px] leading-relaxed"
+          className="m-0 mt-2 text-[12px] leading-relaxed pl-[26px]"
           style={{
             color: 'var(--text-secondary)',
             display: '-webkit-box',
-            WebkitLineClamp: 3,
+            WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
           }}

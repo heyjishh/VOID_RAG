@@ -1,46 +1,75 @@
-import { useState, useRef } from 'react'
-import gsap from 'gsap'
-import Navbar from './components/Navbar.jsx'
+import { useState } from 'react'
+import NavRail from './components/NavRail.jsx'
+import TopHeader from './components/TopHeader.jsx'
 import ChatPanel from './components/ChatPanel.jsx'
-import SourcePanel from './components/SourcePanel.jsx'
+import DraftPanel from './components/DraftPanel.jsx'
+import EvidencePanel from './components/EvidencePanel.jsx'
+import MatterSidebar from './components/MatterSidebar.jsx'
 import SettingsDrawer from './components/SettingsDrawer.jsx'
-import ConversationSidebar from './components/ConversationSidebar.jsx'
-import CollapsedPanelPill from './components/CollapsedPanelPill.jsx'
+import AuthPage from './pages/AuthPage.jsx'
 import { listConversations, getConversation, deleteConversation } from './lib/conversationStore.js'
+import { getSession, logout } from './lib/session.js'
+
+function routeFromHash() {
+  const h = window.location.hash
+  if (h.startsWith('#/signup')) return 'signup'
+  return 'login'
+}
+
+function extractPrefill() {
+  try {
+    const stored = sessionStorage.getItem('juryai.prefill')
+    if (stored) {
+      sessionStorage.removeItem('juryai.prefill')
+      return stored
+    }
+    const params = new URLSearchParams(window.location.search)
+    const fromQuery = params.get('q')
+    if (fromQuery) return fromQuery
+    const hashMatch = window.location.hash.match(/[?&]q=([^&]*)/)
+    if (hashMatch) return decodeURIComponent(hashMatch[1].replace(/\+/g, ' '))
+  } catch (e) {}
+  return null
+}
 
 export default function App() {
+  const [user, setUser] = useState(() => getSession())
+  const [authMode, setAuthMode] = useState(() => routeFromHash())
+  const [prefill, setPrefill] = useState(() => extractPrefill())
+
+  const [mode, setMode] = useState('ask')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeChunks, setActiveChunks] = useState([])
   const [activeQuestion, setActiveQuestion] = useState('')
   const [activeVerification, setActiveVerification] = useState(null)
   const [sourcePanelLoading, setSourcePanelLoading] = useState(false)
-  const [sourcePanelCollapsed, setSourcePanelCollapsed] = useState(true)
-  const [historyCollapsed, setHistoryCollapsed] = useState(true)
+  const [evidenceCollapsed, setEvidenceCollapsed] = useState(false)
+  const [mattersCollapsed, setMattersCollapsed] = useState(false)
   const [useWebSearch, setUseWebSearch] = useState(false)
   const [conversations, setConversations] = useState(() => listConversations())
   const [activeConversationId, setActiveConversationId] = useState(null)
-  const pillRef = useRef(null)
-  const historyPillRef = useRef(null)
 
-  function handleToggleSources() {
-    if (pillRef.current && sourcePanelCollapsed) {
-      // Snap the pill out before uncollapsing
-      gsap.to(pillRef.current, { x: 30, opacity: 0, duration: 0.15, ease: 'power2.in' })
-    }
-    setSourcePanelCollapsed(c => !c)
+  function handleAuthed() {
+    setUser(getSession())
+    window.location.hash = '#/app'
   }
 
-  function handleToggleHistory() {
-    if (historyPillRef.current && historyCollapsed) {
-      gsap.to(historyPillRef.current, { x: -30, opacity: 0, duration: 0.15, ease: 'power2.in' })
-    }
-    setHistoryCollapsed(c => !c)
+  async function handleLogout() {
+    await logout()
+    setUser(null)
+    window.location.hash = '#/login'
+  }
+
+  function handleSwitchAuthMode(next) {
+    setAuthMode(next)
+    window.location.hash = next === 'signup' ? '#/signup' : '#/login'
   }
 
   function handleSelectConversation(id) {
     setActiveChunks([])
     setActiveQuestion('')
     setActiveVerification(null)
+    setPrefill(null)
     setActiveConversationId(id)
   }
 
@@ -48,6 +77,7 @@ export default function App() {
     setActiveChunks([])
     setActiveQuestion('')
     setActiveVerification(null)
+    setPrefill(null)
     setActiveConversationId(null)
   }
 
@@ -61,78 +91,90 @@ export default function App() {
     setConversations(listConversations())
   }
 
+  if (!user) {
+    return (
+      <AuthPage
+        mode={authMode}
+        onAuthed={handleAuthed}
+        onSwitchMode={handleSwitchAuthMode}
+      />
+    )
+  }
+
   const resumedConversation = activeConversationId ? getConversation(activeConversationId) : null
+  const matterLabel = resumedConversation?.title || (mode === 'draft' ? 'Drafts' : 'New research')
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-main)' }}>
-      <Navbar
+    <div className="h-screen flex overflow-hidden">
+      <NavRail
+        mode={mode}
+        onModeChange={setMode}
         onSettingsClick={() => setSettingsOpen(true)}
-        onToggleSources={handleToggleSources}
-        sourcesCollapsed={sourcePanelCollapsed}
-        sourcesCount={activeChunks.length}
-        onToggleHistory={handleToggleHistory}
-        historyCollapsed={historyCollapsed}
+        user={user}
+        onLogout={handleLogout}
       />
 
-      <div className="flex-1 flex overflow-hidden relative">
-        <ConversationSidebar
-          conversations={conversations}
-          activeId={activeConversationId}
-          onSelect={handleSelectConversation}
-          onNew={handleNewConversation}
-          onDelete={handleDeleteConversation}
-          collapsed={historyCollapsed}
-        />
-
-        <ChatPanel
-          key={activeConversationId || 'new'}
-          initialConversationId={activeConversationId}
-          initialMessages={resumedConversation?.messages || []}
-          onPersist={handlePersistConversation}
-          onNewSources={(chunks, question, verification) => {
-            setActiveChunks(chunks)
-            setActiveQuestion(question)
-            setActiveVerification(verification || null)
-            setSourcePanelLoading(false)
-            if (chunks.length > 0) setSourcePanelCollapsed(false)
-          }}
-          onLoading={(q) => {
-            setActiveChunks([])
-            setActiveQuestion(q)
-            setActiveVerification(null)
-            setSourcePanelLoading(true)
-          }}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <TopHeader
+          matterLabel={matterLabel}
+          activeTitle={mode === 'draft' ? null : resumedConversation?.title}
+          onToggleMatters={() => setMattersCollapsed(c => !c)}
+          mattersCollapsed={mattersCollapsed}
+          onToggleEvidence={() => setEvidenceCollapsed(c => !c)}
+          evidenceCollapsed={evidenceCollapsed}
+          evidenceCount={activeChunks.length}
           useWebSearch={useWebSearch}
           onToggleWebSearch={() => setUseWebSearch(w => !w)}
+          user={user}
         />
 
-        <SourcePanel
-          chunks={activeChunks}
-          question={activeQuestion}
-          isLoading={sourcePanelLoading}
-          collapsed={sourcePanelCollapsed}
-          verification={activeVerification}
-        />
+        <div className="flex-1 flex overflow-hidden relative">
+          {mode === 'draft' ? (
+            <DraftPanel />
+          ) : (
+            <>
+              <MatterSidebar
+                conversations={conversations}
+                activeId={activeConversationId}
+                onSelect={handleSelectConversation}
+                onNew={handleNewConversation}
+                onDelete={handleDeleteConversation}
+                collapsed={mattersCollapsed}
+              />
 
-        {historyCollapsed && (
-          <CollapsedPanelPill
-            ref={historyPillRef}
-            side="left"
-            label="History"
-            title="Show conversation history"
-            onClick={handleToggleHistory}
-          />
-        )}
+              <ChatPanel
+                key={activeConversationId || 'new'}
+                initialConversationId={activeConversationId}
+                initialMessages={resumedConversation?.messages || []}
+                initialQuestion={prefill}
+                onPersist={handlePersistConversation}
+                onNewSources={(chunks, question, verification) => {
+                  setActiveChunks(chunks)
+                  setActiveQuestion(question)
+                  setActiveVerification(verification || null)
+                  setSourcePanelLoading(false)
+                  if (chunks.length > 0) setEvidenceCollapsed(false)
+                }}
+                onLoading={(q) => {
+                  setActiveChunks([])
+                  setActiveQuestion(q)
+                  setActiveVerification(null)
+                  setSourcePanelLoading(true)
+                }}
+                useWebSearch={useWebSearch}
+                onToggleWebSearch={() => setUseWebSearch(w => !w)}
+              />
 
-        {sourcePanelCollapsed && (
-          <CollapsedPanelPill
-            ref={pillRef}
-            side="right"
-            label={`Sources${activeChunks.length > 0 ? ` · ${activeChunks.length}` : ''}`}
-            title={`Show sources${activeChunks.length > 0 ? ` (${activeChunks.length})` : ''}`}
-            onClick={handleToggleSources}
-          />
-        )}
+              <EvidencePanel
+                chunks={activeChunks}
+                question={activeQuestion}
+                isLoading={sourcePanelLoading}
+                collapsed={evidenceCollapsed}
+                verification={activeVerification}
+              />
+            </>
+          )}
+        </div>
       </div>
 
       {settingsOpen && (
@@ -140,6 +182,8 @@ export default function App() {
           onClose={() => setSettingsOpen(false)}
           useWebSearch={useWebSearch}
           onToggleWebSearch={() => setUseWebSearch(w => !w)}
+          user={user}
+          onLogout={handleLogout}
         />
       )}
     </div>

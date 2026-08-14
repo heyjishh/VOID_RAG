@@ -102,7 +102,7 @@ async def test_web_search_fallback_to_duckduckgo():
     mock_scorer.score.return_value = 0.3
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list, on_step=None: ev_list)
 
     # Build the WebEvidence that _duckduckgo would return
     from app.core.web_search.searcher import _make_evidence
@@ -157,7 +157,7 @@ async def test_web_search_uses_tavily_when_key_present():
     mock_scorer.score.return_value = 0.7
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list, on_step=None: ev_list)
 
     mock_reranker = MagicMock()
     mock_reranker.score_pairs.side_effect = lambda q, texts: [0.5] * len(texts)
@@ -321,7 +321,7 @@ async def test_citation_id_format_is_web_index():
     mock_scorer.score.return_value = 0.3
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list, on_step=None: ev_list)
 
     # Build WebEvidence list matching what _duckduckgo would produce
     from app.core.web_search.searcher import _make_evidence
@@ -375,7 +375,7 @@ async def test_web_search_returns_valid_web_evidence_with_authority_score():
     mock_scorer.score.return_value = 0.55  # non-zero to confirm it was set
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list, on_step=None: ev_list)
 
     from app.core.web_search.searcher import _make_evidence
     ddg_evidence = [_make_evidence(
@@ -440,7 +440,7 @@ async def test_web_search_score_comes_from_reranker_not_provider():
     mock_scorer.score.side_effect = fake_score
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list, on_step=None: ev_list)
 
     # ...but the reranker says it's actually a poor semantic match (0.05).
     mock_reranker = MagicMock()
@@ -644,7 +644,7 @@ async def test_web_search_issues_generic_and_government_scoped_wigolo_calls():
     mock_scorer.score.return_value = 0.3
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list, on_step=None: ev_list)
 
     with patch.object(searcher_mod, "_wigolo_available", AsyncMock(return_value=True)), \
          patch.object(searcher_mod, "_duckduckgo", AsyncMock(return_value=[])), \
@@ -704,7 +704,7 @@ async def test_web_search_merges_and_dedupes_government_results_by_url():
     mock_scorer.score.return_value = 0.5
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list, on_step=None: ev_list)
 
     mock_reranker = MagicMock()
     mock_reranker.score_pairs.side_effect = lambda q, texts: [0.5] * len(texts)
@@ -749,7 +749,7 @@ async def test_government_scoped_pass_skipped_when_wigolo_unavailable():
     mock_scorer.score.return_value = 0.3
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(side_effect=lambda ev_list: ev_list)
+    mock_validator.validate = AsyncMock(side_effect=lambda ev_list, on_step=None: ev_list)
 
     mock_gov_search = AsyncMock(return_value=[])
 

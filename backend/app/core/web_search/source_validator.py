@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 from html.parser import HTMLParser
+from urllib.parse import urlparse
 
 import fitz
 import httpx
@@ -130,7 +131,11 @@ _SUBSTANTIAL_CONTENT_MIN_CHARS = 500
 class SourceValidator:
     """Populate ``content`` for each WebEvidence via a multi-step fetch pipeline."""
 
-    async def validate(self, evidence_list: list[WebEvidence]) -> list[WebEvidence]:
+    async def validate(
+        self,
+        evidence_list: list[WebEvidence],
+        on_step: callable | None = None,
+    ) -> list[WebEvidence]:
         """Fetch full page content for every evidence item.
 
         For each URL, attempts fetch methods in priority order.  If all methods
@@ -140,14 +145,43 @@ class SourceValidator:
         or unreachable URL (up to ~38s worst case across all four fetch tiers)
         blocked every URL behind it, turning a 5-source web search into
         minutes of dead air on the reasoning timeline.
+
+        ``on_step(dict)`` is invoked as each source completes (or is skipped)
+        so the reasoning timeline can show live fetch progress.
         """
         needs_fetch = [
             i for i, ev in enumerate(evidence_list)
             if len(ev.get("content", "")) < _SUBSTANTIAL_CONTENT_MIN_CHARS
         ]
+        skipped = len(evidence_list) - len(needs_fetch)
+        done_count = 0
+
+        async def _fetch_and_report(index: int) -> str:
+            nonlocal done_count
+            content = await self._fetch_content(evidence_list[index]["url"])
+            done_count += 1
+            if on_step:
+                url = evidence_list[index]["url"]
+                domain = urlparse(url).netloc or url
+                on_step({
+                    "step": "web_search_fetch_progress",
+                    "detail": f"Fetching sources {done_count}/{len(needs_fetch)} — {domain}",
+                    "done": done_count,
+                    "total": len(needs_fetch),
+                    "domain": domain,
+                })
+            return content
+
         contents = await asyncio.gather(
-            *(self._fetch_content(evidence_list[i]["url"]) for i in needs_fetch)
+            *(_fetch_and_report(i) for i in needs_fetch)
         )
+        if on_step and skipped:
+            on_step({
+                "step": "web_search_fetch_progress",
+                "detail": f"{skipped} sources already have full text",
+                "done": len(needs_fetch),
+                "total": len(needs_fetch),
+            })
         for i, content in zip(needs_fetch, contents):
             if content:
                 evidence_list[i]["content"] = content

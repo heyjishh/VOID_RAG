@@ -71,7 +71,7 @@ export default function VerificationBadge({ verification, question, onRefine }) 
 
   return (
     <div
-      className="mt-2.5 overflow-hidden"
+      className="overflow-hidden"
       style={{
         borderRadius: 'var(--radius-md)',
         border: `1px solid ${meta.border}`,

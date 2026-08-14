@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>JuryAI — Legal Research at the Speed of Thought</title>
+<meta name="description" content="JuryAI is an intelligent legal research assistant: semantic + full-text search across millions of judgments, statutes and gazettes, with every answer traced to a cited source.">
+<meta name="keywords" content="legal research, ai legal assistant, judgment search, case law, statutes, cited answers, rag, indian law, bail under crpc">
+<meta name="author" content="JuryAI">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0e0c09">
+<link rel="canonical" href="https://juryai.legal/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JuryAI">
+<meta property="og:title" content="JuryAI — Legal Research at the Speed of Thought">
+<meta property="og:description" content="Intelligent legal research: millions of judgments and statutes, one query. Answers with sources, matter workspaces, and judgment drafting.">
+<meta property="og:url" content="https://juryai.legal/">
+<meta property="og:image" content="https://picsum.photos/seed/juryai/1200/630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="JuryAI — Legal Research at the Speed of Thought">
+<meta name="twitter:description" content="Millions of judgments and statutes, one query. Every answer traced to a cited source. Matter workspaces and drafting.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23c1121f'/%3E%3Cpath d='M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12' stroke='%23ece2cf' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Organization","name":"JuryAI","url":"https://juryai.legal/","logo":"https://picsum.photos/seed/juryai/1200/630","sameAs":["https://x.com/juryai","https://t.me/juryai","https://www.linkedin.com/company/juryai","https://github.com/juryai"]}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;0,900;1,700;1,900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{display:['Fraunces','serif'],mono:['Space Mono','monospace']}}}}</script>
+<style>
+/* ─── CASE FILE DOCKET — 3 core colours: ink · bone · blood ─── */
+:root{
+  --ink:#0e0c09;          /* page / night chamber */
+  --panel:#161310;        /* raised paper */
+  --panel-2:#1d1914;
+  --bone:#ece2cf;         /* ink on paper */
+  --bone-dim:#a99f8a;
+  --blood:#c1121f;        /* the red thread */
+  --line:rgba(236,226,207,0.24);
+  --line-strong:rgba(236,226,207,0.55);
+  --shadow:0 18px 50px rgba(0,0,0,0.5);
+  --display:'Fraunces',serif;
+  --mono:'Space Mono',monospace;
+}
+/* LIGHTS-ON surprise: the whole docket inverts to aged parchment */
+html[data-light]{
+  --ink:#e8dcc3;
+  --panel:#f2e9d6;
+  --panel-2:#f7f0e0;
+  --bone:#16130d;
+  --bone-dim:#6b6152;
+  --blood:#a80f1a;
+  --line:rgba(22,19,13,0.3);
+  --line-strong:rgba(22,19,13,0.6);
+  --shadow:0 18px 50px rgba(90,60,20,0.18);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+html,body{overflow-x:hidden}
+body{background:var(--ink);color:var(--bone);font-family:var(--mono);-webkit-font-smoothing:antialiased;transition:background-color .35s,color .35s}
+::selection{background:var(--blood);color:var(--bone)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--ink)}
+::-webkit-scrollbar-thumb{background:var(--blood);border:2px solid var(--ink)}
+::-webkit-scrollbar-thumb:hover{background:var(--bone)}
+.container{max-width:1320px;margin-inline:auto;padding-inline:1.5rem}
+.mono{font-family:var(--mono)}
+.display{font-family:var(--display)}
+a{text-decoration:none;color:inherit}
+
+/* film grain — evidence texture over everything */
+.grain{position:fixed;inset:0;z-index:200;pointer-events:none;opacity:.06;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+}
+
+/* custom cursor — blood ring + bone dot */
+@media (pointer:fine){
+  body,body a,body button{cursor:none}
+}
+.cursor-dot,.cursor-ring{position:fixed;top:0;left:0;z-index:300;pointer-events:none;border-radius:50%}
+.cursor-dot{width:6px;height:6px;background:var(--bone);transform:translate(-50%,-50%)}
+.cursor-ring{width:36px;height:36px;border:1.5px solid var(--blood);transform:translate(-50%,-50%);opacity:.9}
+@media (pointer:coarse){.cursor-dot,.cursor-ring{display:none}}
+
+/* eyebrow: docket reference line */
+.eyebrow{display:flex;align-items:center;gap:.7rem;font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:var(--bone-dim)}
+.eyebrow i{font-style:normal;color:var(--blood);font-weight:700}
+
+/* brutal stamp — "FILED / CITED / VERIFIED" */
+.stamp{display:inline-block;font-family:var(--mono);font-size:.62rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--blood);border:1.5px solid var(--blood);padding:.3rem .6rem;transform:rotate(-6deg);background:transparent;white-space:nowrap}
+.stamp-soft{color:var(--bone-dim);border-color:var(--bone-dim)}
+
+/* brutal buttons — hard edge, skewed, no radius */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.55rem;font-family:var(--mono);font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;border:2px solid var(--bone);color:var(--bone);padding:.9rem 1.6rem;transform:skewX(-6deg);transition:background-color .15s,color .15s,border-color .15s;background:transparent}
+.btn>*{transform:skewX(6deg)}
+.btn:hover{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.btn-red{background:var(--blood);border-color:var(--blood);color:var(--bone)}
+.btn-red:hover{background:var(--bone);border-color:var(--bone);color:var(--blood)}
+
+/* brutal card — no radius, no shadow, hard tape patch */
+.card-brut{position:relative;background:var(--panel);border:2px solid var(--line-strong);padding:1.6rem;transition:border-color .15s,transform .15s}
+.card-brut:hover{border-color:var(--blood)}
+.c-tape{position:absolute;top:-11px;left:50%;transform:translateX(-50%) rotate(-1deg);background:var(--blood);color:var(--bone);font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.2em;padding:.18rem .6rem;text-transform:uppercase;white-space:nowrap}
+
+/* evidence pin — blood head, steel needle */
+.pin{position:absolute;width:22px;height:22px;transform:translate(-50%,-50%) rotate(-45deg);z-index:5}
+.pin::before{content:"";position:absolute;inset:0;border-radius:50% 50% 50% 0;background:var(--blood);box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.pin::after{content:"";position:absolute;bottom:-16px;left:10px;width:2px;height:18px;background:linear-gradient(to bottom,#b8b2a2,rgba(184,178,162,0));}
+
+/* the red thread — connecting evidence */
+.threads{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+
+/* law library books */
+.book{position:relative;width:74px;flex-shrink:0;display:flex;flex-direction:column;transition:transform .2s;transform-origin:bottom center}
+.book:hover{transform:translateY(-10px) rotate(-1.5deg)}
+.book .spine{flex:1;border:2px solid var(--line-strong);border-bottom:none;writing-mode:vertical-rl;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:.95rem;letter-spacing:.08em;gap:.4rem}
+.book .spine small{font-family:var(--mono);font-size:.55rem;color:var(--bone-dim);font-weight:400}
+.book .top{height:14px;border:2px solid var(--line-strong);border-bottom:none;background:var(--panel-2)}
+.book::after{content:"";position:absolute;top:-2px;left:50%;width:26px;height:6px;transform:translateX(-50%);background:var(--blood)}
+
+/* pipeline rows */
+.row-pipe{display:grid;grid-template-columns:110px 1fr auto;gap:1.5rem;align-items:stretch;border-top:2px solid var(--line-strong);transition:background-color .15s}
+.row-pipe:last-child{border-bottom:2px solid var(--line-strong)}
+.row-pipe:hover{background:var(--blood)}
+.row-pipe:hover .rp-num,.row-pipe:hover .rp-title,.row-pipe:hover .rp-desc,.row-pipe:hover .rp-tag{color:var(--bone)!important}
+.rp-num{font-family:var(--display);font-size:clamp(2.6rem,5vw,4rem);font-weight:900;line-height:1;text-align:center;align-self:center;color:var(--blood)}
+
+/* marquee — docket tape */
+.docket-tape{overflow:hidden;border-block:2px solid var(--line-strong);background:var(--panel)}
+.docket-track{display:flex;width:max-content;animation:tape 32s linear infinite}
+.docket-track:hover{animation-play-state:paused}
+@keyframes tape{to{transform:translateX(-50%)}}
+.docket-item{display:flex;align-items:center;gap:1.2rem;padding:1rem 1.6rem;font-family:var(--mono);font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;color:var(--bone-dim);border-right:1px dashed var(--line)}
+.docket-item b{color:var(--blood);font-weight:700}
+
+/* headline reveal */
+.mask{display:inline-block;overflow:hidden;vertical-align:bottom}
+.mask-line{display:block;overflow:hidden}
+.mask-word{display:inline-block;transform:translateY(115%);transition:transform .9s cubic-bezier(.23,1,.32,1)}
+.is-in .mask-word{transform:translateY(0)}
+html[data-light] .mask-word{transition-delay:.1s}
+
+/* hero bar labels */
+.h-label{font-family:var(--mono);font-size:.66rem;letter-spacing:.24em;text-transform:uppercase;color:var(--bone-dim);display:flex;align-items:center;gap:.5rem}
+.h-label::before{content:"";width:22px;height:2px;background:var(--blood)}
+
+/* board viewport + track */
+#board{overflow:hidden}
+#board-track{position:relative;width:1900px;height:640px}
+.exhibit{position:absolute;width:340px;z-index:4}
+.ex-one{top:60px;left:110px}
+.ex-two{top:250px;left:420px}
+.ex-three{top:90px;left:730px}
+.ex-four{top:300px;left:1040px}
+.ex-five{top:70px;left:1340px}
+.ex-six{top:280px;left:1630px}
+
+/* judge stage */
+#judge-wrap{position:relative}
+#judge-canvas{width:100%;height:100%;display:block}
+#judge-glow{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);width:70%;height:90px;border-radius:50%;background:radial-gradient(closest-side,rgba(193,18,31,.35),transparent 70%);filter:blur(6px);pointer-events:none}
+#judge-fallback{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;color:var(--bone-dim);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase}
+
+/* corner authorship label */
+.sig{position:absolute;font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--bone-dim);writing-mode:vertical-rl;text-orientation:mixed}
+
+/* magnetic bits */
+.mag{transition:transform .12s ease-out}
+
+/* reveal */
+[data-reveal]{opacity:0;transform:translateY(26px);transition:opacity .7s var(--ease, cubic-bezier(.23,1,.32,1)),transform .7s var(--ease, cubic-bezier(.23,1,.32,1))}
+[data-reveal].is-in{opacity:1;transform:none}
+
+@media (prefers-reduced-motion: reduce){
+  .mask-word{transition:none;transform:none}
+  .docket-track{animation:none}
+  [data-reveal]{opacity:1;transform:none;transition:none}
+}
+</style>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="cursor-dot" id="cursor-dot" aria-hidden="true"></div>
+<div class="cursor-ring" id="cursor-ring" aria-hidden="true"></div>
+
+<!-- ═══════════════ NAV — THE DOCKET INDEX ═══════════════ -->
+<nav id="navbar" class="fixed top-0 left-0 right-0 z-[100] border-b-2 border-[var(--line-strong)] bg-[var(--ink)]/92 backdrop-blur-md">
+  <div class="container flex items-center justify-between h-16 md:h-[72px]">
+    <a href="#top" class="flex items-center gap-2.5" aria-label="JuryAI home">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="var(--blood)"/><path d="M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12" stroke="var(--bone)" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="display font-black text-xl tracking-tight">Jury<span class="text-[var(--blood)] italic">AI</span></span>
+    </a>
+    <div class="hidden md:flex items-center gap-8 mono text-[12px] font-bold tracking-[.18em] uppercase">
+      <a href="#board" class="hover:text-[var(--blood)] transition-colors"><span class="text-[var(--blood)]">01.</span> Board</a>
+      <a href="#library" class="hover:text-[var(--blood)] transition-colors"><span class="text-[var(--blood)]">02.</span> Library</a>
+      <a href="#pipeline" class="hover:text-[var(--blood)] transition-colors"><span class="text-[var(--blood)]">03.</span> Pipeline</a>
+      <a href="#rates" class="hover:text-[var(--blood)] transition-colors"><span class="text-[var(--blood)]">04.</span> Rates</a>
+    </div>
+    <div class="hidden md:flex items-center gap-3">
+      <button id="light-toggle" class="mono text-[11px] font-bold tracking-[.18em] uppercase border-2 border-[var(--line-strong)] px-3 py-2 hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="Toggle lights">Lights: <span id="light-state">off</span></button>
+      <a href="http://localhost:5174" data-app-cta class="btn !py-2 !px-4 !text-[11px]">Launch app</a>
+      <a href="#file" data-app-cta class="btn btn-red !py-2 !px-4 !text-[11px]">Get started</a>
+    </div>
+    <button id="menu-btn" class="md:hidden p-2 -mr-2 border-2 border-[var(--line-strong)]" aria-label="Open menu" aria-expanded="false">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--blood)" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+  <div id="mobile-menu" class="hidden md:hidden flex-col gap-1 px-5 pb-6 pt-2 bg-[var(--ink)] border-t-2 border-[var(--line)]">
+    <a href="#board" class="py-3 px-3 mono text-xs font-bold tracking-[.18em] uppercase hover:text-[var(--blood)]">01. Board</a>
+    <a href="#library" class="py-3 px-3 mono text-xs font-bold tracking-[.18em] uppercase hover:text-[var(--blood)]">02. Library</a>
+    <a href="#pipeline" class="py-3 px-3 mono text-xs font-bold tracking-[.18em] uppercase hover:text-[var(--blood)]">03. Pipeline</a>
+    <a href="#rates" class="py-3 px-3 mono text-xs font-bold tracking-[.18em] uppercase hover:text-[var(--blood)]">04. Rates</a>
+    <div class="flex gap-3 mt-3">
+      <button id="light-toggle-m" class="flex-1 mono text-[11px] font-bold tracking-[.18em] uppercase border-2 border-[var(--line-strong)] py-2.5">Lights: <span id="light-state-m">off</span></button>
+      <a href="#file" data-app-cta class="btn btn-red flex-1 !py-2.5 !text-[11px]">Get started</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════ HERO — THE CHAMBER ═══════════════ -->
+<header id="top" class="relative min-h-[100dvh] flex items-center pt-28 md:pt-32 pb-10">
+  <div class="container grid lg:grid-cols-[1.05fr_.95fr] gap-10 items-center relative">
+    <div class="relative pt-10">
+      <span class="stamp absolute -left-2 top-0 md:-left-6">Case file № 001</span>
+      <p class="eyebrow" data-hero="1"><i>Exhibit</i> — millions of authorities, one query</p>
+
+      <h1 id="hero-headline" data-split class="display font-black leading-[.92] tracking-tight mt-7 text-[clamp(3rem,8.5vw,6.6rem)]">
+        <span class="block">Every answer,</span>
+        <span class="block italic text-[var(--blood)] -ml-1 md:-ml-6">cross-examined.</span>
+      </h1>
+
+      <p id="hero-sub" class="mt-7 max-w-md text-[13.5px] leading-relaxed text-[var(--bone-dim)]" data-hero="2">
+        JuryAI reads judgments, statutes and gazettes the way a reading counsel does —
+        then answers with every proposition <span class="text-[var(--blood)] font-bold">pinned to a cited source</span>.
+        No assertions. Only evidence.
+      </p>
+
+      <div class="mt-10 flex flex-wrap items-center gap-5" data-hero="3">
+        <a href="#file" data-app-cta class="btn btn-red magnetic" data-magnetic>
+          Open a matter
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a href="#board" class="mono text-[12px] font-bold tracking-[.18em] uppercase underline underline-offset-4 decoration-[var(--blood)] decoration-2 hover:text-[var(--blood)] transition-colors">
+          Inspect the evidence ↓
+        </a>
+      </div>
+
+      <dl id="hero-stats" class="mt-12 grid grid-cols-2 sm:grid-cols-4 border-2 border-[var(--line-strong)] divide-x-2 divide-[var(--line-strong)]" data-hero="4">
+        <div class="p-4"><dt class="mono text-[10px] uppercase tracking-[.2em] text-[var(--bone-dim)]">Exhibits</dt><dd class="display text-2xl font-black text-[var(--blood)]" data-counter="12.4" data-suffix="M">0M</dd></div>
+        <div class="p-4"><dt class="mono text-[10px] uppercase tracking-[.2em] text-[var(--bone-dim)]">Cited answers</dt><dd class="display text-2xl font-black" data-counter="99.8" data-suffix="%">0%</dd></div>
+        <div class="p-4"><dt class="mono text-[10px] uppercase tracking-[.2em] text-[var(--bone-dim)]">Corpora</dt><dd class="display text-2xl font-black" data-counter="40" data-suffix="+">0+</dd></div>
+        <div class="p-4"><dt class="mono text-[10px] uppercase tracking-[.2em] text-[var(--bone-dim)]">Time saved</dt><dd class="display text-2xl font-black" data-counter="70" data-suffix="%">0%</dd></div>
+      </dl>
+    </div>
+
+    <div id="judge-wrap" class="relative h-[420px] md:h-[560px]" data-hero="5">
+      <span class="sig -left-1 top-6 hidden md:block">The reading counsel · est. grounded evidence</span>
+
+      <div id="research-scene" class="absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div id="scene-stage">
+          <div data-wheel></div>
+          <div class="rs-line"></div>
+          <div class="rs-line rs-line2"></div>
+          <div id="rs-book">
+            <div class="rs-cover"></div>
+            <div class="rs-spine"></div>
+            <div class="rs-page rs-l"></div>
+            <div class="rs-page rs-r"></div>
+            <div class="rs-leaf" data-leaf><div class="rs-face"></div><div class="rs-face rs-back"></div></div>
+            <div class="rs-leaf" data-leaf><div class="rs-face"></div><div class="rs-face rs-back"></div></div>
+            <div class="rs-leaf" data-leaf><div class="rs-face"></div><div class="rs-face rs-back"></div></div>
+            <div class="rs-leaf" data-leaf><div class="rs-face"></div><div class="rs-face rs-back"></div></div>
+          </div>
+          <div class="rs-pager">
+            <div class="rs-dots" data-pager></div>
+            <span class="rs-plabel" data-plabel></span>
+          </div>
+          <div class="rs-hint" data-hint>◂ click the desk to turn the spread ▸</div>
+          <div class="rs-stack">
+            <div class="rs-spineb rs-b1" data-bob>IPC</div>
+            <div class="rs-spineb rs-b2" data-bob>CrPC</div>
+            <div class="rs-spineb rs-b3" data-bob>EVID.</div>
+          </div>
+          <div class="rs-gav">
+            <div class="rs-case"></div>
+            <div class="rs-beat"></div>
+            <div class="rs-handle" data-gavel></div>
+            <div class="rs-head" data-gavel></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chip absolute top-[6%] right-[2%] mono text-[10px] tracking-[.18em] uppercase border-2 border-[var(--blood)] px-3 py-1.5 rotate-2" aria-hidden="true">Statute · Precedent · Citation</div>
+      <div class="chip absolute bottom-[16%] left-[4%] mono text-[10px] tracking-[.18em] uppercase border-2 border-[var(--line-strong)] px-3 py-1.5 -rotate-2" aria-hidden="true"><span class="text-[var(--blood)] font-bold">●</span> Groundedness gate · active</div>
+    </div>
+
+    <style id="scene-theme">
+      #scene-stage{position:absolute;left:50%;top:50%;width:480px;height:520px;transform:translate(-50%,-50%);transform-origin:50% 50%;will-change:transform}
+      #research-scene [data-wheel]{position:absolute;left:50%;top:34px;transform:translateX(-50%);will-change:transform}
+      #research-scene .rs-line{position:absolute;left:70px;top:118px;width:340px;height:2px;background:var(--line, rgba(236,226,207,0.24))}
+      #research-scene .rs-line2{top:132px;opacity:.6}
+      #rs-book{position:absolute;left:92px;top:150px;width:304px;height:196px;cursor:pointer}
+      .rs-cover{position:absolute;inset:0;background:#c1121f;border:1px solid #ece2cf;border-radius:2px}
+      .rs-spine{position:absolute;left:50%;top:0;width:8px;height:100%;margin-left:-4px;background:#d4af37;border-left:1px solid #ece2cf}
+      .rs-page{position:absolute;top:4px;bottom:4px;width:calc(50% - 4px);background:#ece2cf;color:#16130d;border:1px solid rgba(22,19,13,.4);display:flex;flex-direction:column;gap:4px;padding:10px 9px;box-sizing:border-box;overflow:hidden}
+      .rs-l{left:4px;border-radius:2px 0 0 2px;box-shadow:inset -14px 0 18px -18px rgba(22,19,13,.5)}
+      .rs-r{right:4px;border-radius:0 2px 2px 0;box-shadow:inset 14px 0 18px -18px rgba(22,19,13,.5)}
+      .rs-fk{font:700 7.5px/1 monospace;letter-spacing:.12em;text-transform:uppercase;color:#c1121f}
+      .rs-ft{font:700 12px/1.15 'Fraunces',serif;letter-spacing:-.01em;color:#16130d;margin-top:2px}
+      .rs-txt{font:400 8.2px/1.4 monospace;color:#16130d;opacity:.94;margin-top:2px}
+      .rs-hl{position:relative;font-weight:700;color:#c1121f}
+      .rs-hl::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:#c1121f;transform:scaleX(0);transform-origin:left center;will-change:transform}
+      .rs-ff{font:400 6.5px/1.4 monospace;letter-spacing:.08em;color:#7d7566;margin-top:auto;padding-top:3px;border-top:1px solid rgba(22,19,13,.25)}
+      .rs-ask{font:400 8px/1.4 monospace;text-align:left;color:#16130d;background:rgba(193,18,31,.08);border:1px solid rgba(193,18,31,.55);border-radius:2px;padding:4px 6px;cursor:pointer;transition:background .2s ease-out}
+      .rs-ask:hover{background:rgba(193,18,31,.18)}
+      .rs-curl{position:absolute;inset:0;background:linear-gradient(90deg,transparent 20%,rgba(22,19,13,.28) 55%,rgba(22,19,13,.5) 100%);transform:translateX(60%);z-index:5;pointer-events:none;will-change:transform}
+      .rs-leaf{position:absolute;left:148px;top:4px;width:148px;height:188px;transform-style:preserve-3d;transform-origin:left center;z-index:20}
+      .rs-rest{position:absolute;left:0;top:4px;width:148px;height:188px;z-index:9;visibility:hidden;background:#ece2cf;color:#16130d;display:flex;flex-direction:column;gap:3px;padding:10px 9px;box-sizing:border-box;border:1px solid rgba(22,19,13,.4);border-radius:2px 0 0 2px;box-shadow:inset -14px 0 18px -18px rgba(22,19,13,.5);overflow:hidden}
+      .rs-rest.on{visibility:visible}
+      .rs-face{position:absolute;inset:0;background:#ece2cf;color:#16130d;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;gap:3px;padding:10px 9px;box-sizing:border-box;border:1px solid rgba(22,19,13,.35)}
+      .rs-face.rs-back{transform:rotateY(180deg)}
+      .rs-pager{position:absolute;left:50%;top:356px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px}
+      .rs-dots{display:flex;gap:4px}
+      .rs-dot{width:26px;height:18px;font:700 8px/1 monospace;letter-spacing:.06em;border:1px solid rgba(236,226,207,.4);border-radius:2px;background:transparent;color:#7d7566;cursor:pointer;transition:background .2s ease-out,color .2s ease-out}
+      .rs-dot.on{background:#c1121f;color:#ece2cf}
+      .rs-plabel{font:400 8px/1 monospace;letter-spacing:.16em;color:#7d7566;white-space:nowrap}
+      .rs-hint{position:absolute;left:50%;top:394px;transform:translateX(-50%);font:400 7.5px/1 monospace;letter-spacing:.18em;text-transform:uppercase;color:#d4af37;white-space:nowrap;pointer-events:none}
+      .rs-stack{position:absolute;left:10px;top:210px;width:74px;display:flex;align-items:flex-end;gap:4px;will-change:transform}
+      .rs-spineb{display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;box-sizing:border-box;border:1px solid rgba(236,226,207,.35);border-radius:2px}
+      .rs-spineb span,.rs-spineb{color:#d4af37}
+      .rs-b1{width:22px;height:96px;background:#6b4423}
+      .rs-b2{width:22px;height:120px;background:#6b4423}
+      .rs-b3{width:30px;height:78px;background:#4a2e17}
+      .rs-spineb{font:italic 8px/1 monospace;letter-spacing:.14em;writing-mode:vertical-rl;transform:rotate(180deg)}
+      .rs-gav{position:absolute;right:12px;top:190px;width:84px;height:150px}
+      .rs-case{position:absolute;left:0;bottom:0;width:84px;height:12px;background:#6b4423;border:1px solid rgba(236,226,207,.35)}
+      .rs-beat{position:absolute;left:-6px;bottom:12px;width:96px;height:3px;background:#9aa97c}
+      .rs-handle{position:absolute;left:32px;bottom:34px;width:18px;height:92px;background:#8a5a3b;border:1px solid rgba(236,226,207,.35);transform-origin:50% 100%}
+      .rs-head{position:absolute;left:12px;bottom:112px;width:56px;height:44px;background:#161310;border:1px solid rgba(236,226,207,.35);border-radius:3px;transform-origin:50% 100%}
+    </style>
+  </div>
+</header>
+
+<!-- marquee strip: the day's docket -->
+<div class="docket-tape relative z-10" aria-hidden="true">
+  <div class="docket-track" id="docket-track">
+    <span class="docket-item"><b>§ 302 IPC</b> punishment · murder</span>
+    <span class="docket-item"><b>CrPC 439</b> bail · high court</span>
+    <span class="docket-item"><b>Art. 21</b> right to life</span>
+    <span class="docket-item"><b>IEA 60</b> hearsay · oral evidence</span>
+    <span class="docket-item"><b>BNSS</b> new code · alignment</span>
+    <span class="docket-item"><b>CPC O.7 R.11</b> plaint rejection</span>
+    <span class="docket-item"><b>POCSO 33</b> trial safeguards</span>
+    <span class="docket-item"><b>GST</b> assessment · appeal</span>
+    <span class="docket-item"><b>§ 302 IPC</b> punishment · murder</span>
+    <span class="docket-item"><b>CrPC 439</b> bail · high court</span>
+    <span class="docket-item"><b>Art. 21</b> right to life</span>
+    <span class="docket-item"><b>IEA 60</b> hearsay · oral evidence</span>
+    <span class="docket-item"><b>BNSS</b> new code · alignment</span>
+    <span class="docket-item"><b>CPC O.7 R.11</b> plaint rejection</span>
+    <span class="docket-item"><b>POCSO 33</b> trial safeguards</span>
+    <span class="docket-item"><b>GST</b> assessment · appeal</span>
+  </div>
+</div>
+
+<!-- ═══════════════ THE EVIDENCE BOARD — pins & threads ═══════════════ -->
+<section id="board" class="relative">
+  <div class="container pt-20 md:pt-28">
+    <div class="flex items-end justify-between flex-wrap gap-4" data-reveal>
+      <div>
+        <p class="eyebrow"><i>01.</i> The board</p>
+        <h2 class="display font-black text-[clamp(2.2rem,5vw,4rem)] leading-[.95] mt-4">
+          Judgments on the board,<br><span class="italic text-[var(--blood)]">threads under them.</span>
+        </h2>
+      </div>
+      <p class="mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)] pb-2">Drag the scroll · every pin opens a research matter →</p>
+    </div>
+  </div>
+
+  <div id="board-viewport" class="mt-10 md:mt-14 h-[70vh] md:h-[88vh] overflow-hidden relative">
+    <div id="board-track">
+      <!-- the red threads -->
+      <svg class="threads" viewBox="0 0 1900 640" fill="none" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M170 110 C 320 190, 420 300, 470 300" stroke="var(--blood)" stroke-width="1.6" stroke-dasharray="6 7"/>
+        <path d="M470 300 C 540 340, 650 260, 770 170" stroke="var(--blood)" stroke-width="1.6" stroke-dasharray="6 7"/>
+        <path d="M770 170 C 860 120, 930 240, 1040 330" stroke="var(--blood)" stroke-width="1.6" stroke-dasharray="6 7"/>
+        <path d="M1040 330 C 1130 390, 1240 280, 1360 170" stroke="var(--blood)" stroke-width="1.6" stroke-dasharray="6 7"/>
+        <path d="M1360 170 C 1460 100, 1560 230, 1660 320" stroke="var(--blood)" stroke-width="1.6" stroke-dasharray="6 7"/>
+        <path d="M170 110 C 400 30, 900 40, 1360 170" stroke="var(--bone-dim)" stroke-width="1" stroke-dasharray="2 9" opacity=".5"/>
+      </svg>
+
+      <!-- EXHIBIT A — bail -->
+      <article class="exhibit ex-one card-brut" data-reveal>
+        <span class="c-tape">Exhibit A · Bail</span>
+        <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
+        <h3 class="display font-bold text-xl">AIR 2024 SC 118</h3>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Bail under CrPC §439 — triple test: flight, tampering, gravity of offence. Court must record reasons, however brief.</p>
+        <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
+          <span class="text-[var(--bone-dim)]">cited 214×</span>
+          <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="Bail provisions under CrPC">Open matter</button>
+        </div>
+      </article>
+
+      <!-- EXHIBIT B — article 21 -->
+      <article class="exhibit ex-two card-brut" data-reveal>
+        <span class="c-tape">Exhibit B · Constitution</span>
+        <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
+        <h3 class="display font-bold text-xl">Art. 21 — the right itself</h3>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Life and personal liberty: procedure must be fair, just, reasonable. Expanded by the Court at every turn since A.K. Gopalan.</p>
+        <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
+          <span class="text-[var(--bone-dim)]">updated today</span>
+          <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="Article 21 right to life landmark judgments">Open matter</button>
+        </div>
+      </article>
+
+      <!-- EXHIBIT C — plaint rejection -->
+      <article class="exhibit ex-three card-brut" data-reveal>
+        <span class="c-tape">Exhibit C · CPC</span>
+        <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
+        <h3 class="display font-bold text-xl">Order VII · Rule 11</h3>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Plaint rejection: no cause of action, barred by law, under-valued, or the suit appears from the statement itself to be barred.</p>
+        <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
+          <span class="text-[var(--bone-dim)]">cited 96×</span>
+          <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="Order VII Rule 11 CPC rejection of plaint">Open matter</button>
+        </div>
+      </article>
+
+      <!-- EXHIBIT D — insolvency -->
+      <article class="exhibit ex-four card-brut" data-reveal>
+        <span class="c-tape">Exhibit D · IBC</span>
+        <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
+        <h3 class="display font-bold text-xl">CIRP — the 330-day clock</h3>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Committee of creditors, resolution plan, mandatory timeline. The Code leans on speed — the board leans on you knowing it.</p>
+        <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
+          <span class="text-[var(--bone-dim)]">74 rulings</span>
+          <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="CIRP initiation process under IBC">Open matter</button>
+        </div>
+      </article>
+
+      <!-- EXHIBIT E — evidence act -->
+      <article class="exhibit ex-five card-brut" data-reveal>
+        <span class="c-tape">Exhibit E · IEA</span>
+        <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
+        <h3 class="display font-bold text-xl">Hearsay, on the stand</h3>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Facts admitted, not proved, are proved. Oral evidence must be direct — hearsay walks, unless an exception lets it stay.</p>
+        <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
+          <span class="text-[var(--bone-dim)]">51 matters</span>
+          <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="What constitutes hearsay under the Evidence Act">Open matter</button>
+        </div>
+      </article>
+
+      <!-- EXHIBIT F — protection of children -->
+      <article class="exhibit ex-six card-brut" data-reveal>
+        <span class="c-tape">Exhibit F · POCSO</span>
+        <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
+        <h3 class="display font-bold text-xl">POCSO §33 — trial, shielded</h3>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">In-camera trials, child-friendly procedure, no direct confrontation. The statute guards the witness as fiercely as the charge.</p>
+        <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
+          <span class="text-[var(--bone-dim)]">43 matters</span>
+          <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="POCSO trial procedure and sentencing">Open matter</button>
+        </div>
+      </article>
+    </div>
+  </div>
+  <p class="container mt-6 mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)]">Pins are matters · threads are the reasoning trail — pull one and the research opens.</p>
+</section>
+
+<!-- ═══════════════ THE LIBRARY — acts on the shelf ═══════════════ -->
+<section id="library" class="relative py-24 md:py-32">
+  <div class="container">
+    <div class="flex items-end justify-between flex-wrap gap-4" data-reveal>
+      <div>
+        <p class="eyebrow"><i>02.</i> The library</p>
+        <h2 class="display font-black text-[clamp(2.2rem,5vw,4rem)] leading-[.95] mt-4">
+          Nine codes. One shelf.<br><span class="italic text-[var(--blood)]">Indexed to the section.</span>
+        </h2>
+      </div>
+    </div>
+
+    <div class="mt-14 flex items-end gap-3 md:gap-5 flex-wrap border-b-4 border-[var(--line-strong)] pb-0" data-reveal>
+      <div class="book h-56 md:h-64" data-tilt><div class="spine text-[var(--bone)] bg-[var(--blood)]">THE CONSTITUTION<small>1950</small></div><div class="top"></div></div>
+      <div class="book h-44 md:h-48" data-tilt><div class="spine text-[var(--bone)] bg-[#5c1a12]">IPC 1860<small>§302</small></div><div class="top"></div></div>
+      <div class="book h-52 md:h-60" data-tilt><div class="spine text-[var(--ink)] bg-[var(--bone)]">CRPC 1973<small>§439</small></div><div class="top"></div></div>
+      <div class="book h-40 md:h-44" data-tilt><div class="spine text-[var(--bone)] bg-[#123f3a]">IEA 1872<small>§60</small></div><div class="top"></div></div>
+      <div class="book h-60 md:h-[17rem]" data-tilt><div class="spine text-[var(--bone)] bg-[#3a1230]">BNSS 2023<small>new</small></div><div class="top"></div></div>
+      <div class="book h-48 md:h-52" data-tilt><div class="spine text-[var(--ink)] bg-[#b8a888]">CPC 1908<small>O.7</small></div><div class="top"></div></div>
+      <div class="book h-[10.5rem] hidden sm:flex md:h-[11.5rem]" data-tilt><div class="spine text-[var(--bone)] bg-[#14344d]">POCSO 2012<small>§33</small></div><div class="top"></div></div>
+      <div class="book h-[12.5rem] hidden sm:flex md:h-56" data-tilt><div class="spine text-[var(--bone)] bg-[#4d3f14]">IT ACT 2000<small>§66</small></div><div class="top"></div></div>
+      <div class="book h-44 hidden sm:flex md:h-48" data-tilt><div class="spine text-[var(--bone)] bg-[#232323]">GST 2017<small>§73</small></div><div class="top"></div></div>
+    </div>
+
+    <div class="mt-12 grid md:grid-cols-3 gap-6" data-reveal>
+      <div class="card-brut">
+        <span class="stamp">Sections cited</span>
+        <h3 class="display font-bold text-lg mt-4">Section-level depth</h3>
+        <p class="mono text-[11.5px] text-[var(--bone-dim)] leading-relaxed mt-3">Retrieval lands on the section, not the book. Query to paragraph, paragraph to authority, authority to a verified citation.</p>
+      </div>
+      <div class="card-brut">
+        <span class="stamp soft stamp-soft">Full-text + semantic</span>
+        <h3 class="display font-bold text-lg mt-4">Two engines, one answer</h3>
+        <p class="mono text-[11.5px] text-[var(--bone-dim)] leading-relaxed mt-3">Semantic meaning and exact wording merged — the judgment that says it differently still surfaces; the one that quotes it still ranks.</p>
+      </div>
+      <div class="card-brut">
+        <span class="stamp">Always current</span>
+        <h3 class="display font-bold text-lg mt-4">Gazette-aware corpus</h3>
+        <p class="mono text-[11.5px] text-[var(--bone-dim)] leading-relaxed mt-3">New statutes and notifications indexed as they publish. Nothing on the shelf is a year behind the amendment it supersedes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ THE PIPELINE — four brutalist rows ═══════════════ -->
+<section id="pipeline" class="relative py-24 md:py-32">
+  <div class="container">
+    <div class="flex items-end justify-between flex-wrap gap-4 mb-12" data-reveal>
+      <div>
+        <p class="eyebrow"><i>03.</i> The pipeline</p>
+        <h2 class="display font-black text-[clamp(2.2rem,5vw,4rem)] leading-[.95] mt-4">Read like counsel.<br><span class="italic text-[var(--blood)]">Not like a search bar.</span></h2>
+      </div>
+      <p class="mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)] pb-2">Every answer passes all four stages</p>
+    </div>
+
+    <div data-reveal>
+      <div class="row-pipe p-6 md:p-8">
+        <span class="rp-num">01</span>
+        <div class="py-2">
+          <h3 class="display font-bold text-xl md:text-2xl rp-title">Classify the question</h3>
+          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Intent detection names the instrument: bail, sentencing, procedure, evidence, compliance. Wrong statute in, wrong authority out — so we classify before we retrieve.</p>
+        </div>
+        <span class="rp-tag mono text-[9px] tracking-[.2em] uppercase text-[var(--bone-dim)] hidden md:block pt-2">intent →</span>
+      </div>
+      <div class="row-pipe p-6 md:p-8">
+        <span class="rp-num">02</span>
+        <div class="py-2">
+          <h3 class="display font-bold text-xl md:text-2xl rp-title">Retrieve across engines</h3>
+          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Semantic vectors and full-text inverted index fire in parallel; the fused rank list is re-ranked against the legal corpus, not web noise.</p>
+        </div>
+        <span class="rp-tag mono text-[9px] tracking-[.2em] uppercase text-[var(--bone-dim)] hidden md:block pt-2">corpus + web →</span>
+      </div>
+      <div class="row-pipe p-6 md:p-8">
+        <span class="rp-num">03</span>
+        <div class="py-2">
+          <h3 class="display font-bold text-xl md:text-2xl rp-title">Weigh the evidence</h3>
+          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Chunks are scored for relevance, currency and court hierarchy. The answer is drafted from the winners — with the losing side visible for your judgment.</p>
+        </div>
+        <span class="rp-tag mono text-[9px] tracking-[.2em] uppercase text-[var(--bone-dim)] hidden md:block pt-2">rank →</span>
+      </div>
+      <div class="row-pipe p-6 md:p-8">
+        <span class="rp-num">04</span>
+        <div class="py-2">
+          <h3 class="display font-bold text-xl md:text-2xl rp-title">Cite — or block the gate</h3>
+          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Groundedness verification: every proposition must trace to a source. Unverifiable claims never reach you — the gate returns the answer with a verdict instead.</p>
+        </div>
+        <span class="rp-tag mono text-[9px] tracking-[.2em] uppercase text-[var(--bone-dim)] hidden md:block pt-2">cited →</span>
+      </div>
+    </div>
+
+    <div class="mt-10 flex justify-center" data-reveal>
+      <a href="#file" data-app-cta class="btn btn-red magnetic" data-magnetic>Run the pipeline free</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ RATES — the fee schedule ═══════════════ -->
+<section id="rates" class="relative py-24 md:py-32">
+  <div class="container">
+    <div class="flex items-end justify-between flex-wrap gap-4 mb-12" data-reveal>
+      <div>
+        <p class="eyebrow"><i>04.</i> The fee schedule</p>
+        <h2 class="display font-black text-[clamp(2.2rem,5vw,4rem)] leading-[.95] mt-4">Start free. Scale when<br><span class="italic text-[var(--blood)]">the caseload does.</span></h2>
+      </div>
+      <p class="mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)] pb-2">No per-seat games · no surprise usage walls</p>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6" data-reveal>
+      <article class="card-brut flex flex-col">
+        <span class="stamp stamp-soft">Solo</span>
+        <p class="display font-black text-5xl mt-5"><span class="text-[var(--blood)]">$0</span></p>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-1">/ forever</p>
+        <ul class="mt-6 space-y-2.5 mono text-[12px] flex-1">
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>20 research queries / mo</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>3 active matters</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Judgment corpus search</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Community support</li>
+        </ul>
+        <a href="#file" data-app-cta class="btn mt-8 w-full">Start free</a>
+      </article>
+
+      <article class="card-brut flex flex-col relative border-[var(--blood)]">
+        <span class="c-tape">Most filed</span>
+        <span class="stamp absolute right-2 top-2">FILED</span>
+        <p class="mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)]">Pro</p>
+        <p class="display font-black text-5xl mt-3"><span class="text-[var(--blood)]">$29</span></p>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-1">/ mo</p>
+        <ul class="mt-6 space-y-2.5 mono text-[12px] flex-1">
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Everything in Solo</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Unlimited queries</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Matters &amp; team sharing</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Judgment drafting</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Web + corpus search</li>
+        </ul>
+        <a href="#file" data-app-cta class="btn btn-red mt-8 w-full">Go Pro</a>
+      </article>
+
+      <article class="card-brut flex flex-col">
+        <span class="stamp stamp-soft">Firm</span>
+        <p class="display font-black text-5xl mt-5"><span class="text-[var(--blood)]">Custom</span></p>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-1">volume pricing</p>
+        <ul class="mt-6 space-y-2.5 mono text-[12px] flex-1">
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>SSO &amp; role-based access</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Dedicated success manager</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>Red-team audit report</li>
+          <li class="flex gap-2"><span class="text-[var(--blood)]">→</span>99.9% uptime SLA</li>
+        </ul>
+        <a href="#file" data-app-cta class="btn mt-8 w-full">Talk to sales</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FILE IT — final CTA ═══════════════ -->
+<section id="file" class="relative py-28 md:py-40">
+  <div class="container text-center" data-reveal>
+    <span class="stamp">Motion on record</span>
+    <h2 class="display font-black text-[clamp(2.6rem,8vw,6.4rem)] leading-[.9] mt-7">
+      File the research<br><span class="italic text-[var(--blood)]">tonight.</span>
+    </h2>
+    <p class="mono text-[13px] text-[var(--bone-dim)] mt-6 max-w-md mx-auto leading-relaxed">Thirty minutes from this page to a cited answer — matter history in place, ready to defend.</p>
+    <div class="mt-10 flex flex-wrap justify-center gap-5">
+      <a href="#" data-app-cta data-app-q="What is the punishment under Section 302 IPC?" class="btn btn-red magnetic px-8 py-4" data-magnetic>
+        Start free research — §302
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <a href="#" data-app-cta class="btn magnetic px-8 py-4" data-magnetic>Talk to sales</a>
+    </div>
+    <p class="mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)] mt-8">50-query free trial · No card required · GDPR-ready processing</p>
+  </div>
+</section>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer class="relative border-t-2 border-[var(--line-strong)] bg-[var(--panel)]">
+  <div class="container py-16">
+    <div class="grid md:grid-cols-6 gap-10">
+      <div class="md:col-span-2">
+        <a href="#top" class="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="var(--blood)"/><path d="M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12" stroke="var(--bone)" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="display font-black text-lg tracking-tight">Jury<span class="text-[var(--blood)] italic">AI</span></span>
+        </a>
+        <p class="mt-4 mono text-[12px] text-[var(--bone-dim)] leading-relaxed">Intelligent legal research assistant. RAG-powered answers across millions of authorities — every proposition cited, every citation verifiable.</p>
+        <div class="mt-6 flex gap-3">
+          <a href="https://x.com/juryai" target="_blank" rel="noopener" class="grid h-10 w-10 place-items-center border-2 border-[var(--line-strong)] hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="JuryAI on X">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 3h3l-7.2 8.3L21.8 21h-6.6l-4.4-5.8L5.6 21h-3l7.7-8.9L2.5 3h6.8l4 5.3L17.5 3zm-1.2 16h1.7L7.9 4.8H6.1L16.3 19z"/></svg>
+          </a>
+          <a href="https://t.me/juryai" target="_blank" rel="noopener" class="grid h-10 w-10 place-items-center border-2 border-[var(--line-strong)] hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="JuryAI on Telegram">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.7 4.3l-3.2 15.1c-.2 1-.9 1.3-1.7.8l-4.8-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.8L18.2 6c.4-.3-.1-.5-.6-.2L7.2 12.4l-4.7-1.5c-1-.3-1-1 .2-1.5l18.4-7.1c.9-.3 1.6.2 1.3 1.4z"/></svg>
+          </a>
+          <a href="https://www.linkedin.com/company/juryai" target="_blank" rel="noopener" class="grid h-10 w-10 place-items-center border-2 border-[var(--line-strong)] hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="JuryAI on LinkedIn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5C4.98 4.88 3.87 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.5 8h4V23h-4zM8.5 8h3.8v2h.1c.5-1 1.8-2 3.7-2 4 0 4.9 2.6 4.9 6V23h-4v-8c0-1.9 0-4.3-2.6-4.3s-3 2-3 4.1V23h-4z"/></svg>
+          </a>
+          <a href="https://github.com/juryai" target="_blank" rel="noopener" class="grid h-10 w-10 place-items-center border-2 border-[var(--line-strong)] hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="JuryAI on GitHub">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>
+          </a>
+        </div>
+      </div>
+      <nav aria-label="Product">
+        <h4 class="mono text-[10px] uppercase tracking-[.28em] text-[var(--bone-dim)]">Product</h4>
+        <ul class="mt-5 space-y-3 mono text-[12.5px]">
+          <li><a href="#board" class="hover:text-[var(--blood)] transition-colors">Evidence board</a></li>
+          <li><a href="#library" class="hover:text-[var(--blood)] transition-colors">Law library</a></li>
+          <li><a href="#pipeline" class="hover:text-[var(--blood)] transition-colors">Research pipeline</a></li>
+          <li><a href="#rates" class="hover:text-[var(--blood)] transition-colors">Fee schedule</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Company">
+        <h4 class="mono text-[10px] uppercase tracking-[.28em] text-[var(--bone-dim)]">Company</h4>
+        <ul class="mt-5 space-y-3 mono text-[12.5px]">
+          <li><a href="#" class="hover:text-[var(--blood)] transition-colors">About</a></li>
+          <li><a href="#" class="hover:text-[var(--blood)] transition-colors">Careers</a></li>
+          <li><a href="#" class="hover:text-[var(--blood)] transition-colors">Blog</a></li>
+          <li><a href="#" class="hover:text-[var(--blood)] transition-colors">Press kit</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Legal">
+        <h4 class="mono text-[10px] uppercase tracking-[.28em] text-[var(--bone-dim)]">Record</h4>
+        <ul class="mt-5 space-y-3 mono text-[12.5px]">
+          <li><a href="#" class="hover:text-[var(--blood)] transition-colors">Privacy policy</a></li>
+          <li><a href="#" class="hover:text-[var(--blood)] transition-colors">Terms of use</a></li>
+          <li><a href="#" class="hover:text-[var(--blood)] transition-colors">Data processing</a></li>
+          <li><a href="#" class="hover:text-[var(--blood)] transition-colors">Security</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="mt-12 border-t-2 border-[var(--line)] pt-5 flex items-center justify-between mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)] flex-wrap gap-3">
+      <span>© MMXXVI JURYAI — est. impartiality</span>
+      <span>Think like a barrister <span class="text-[var(--blood)]">·</span> cite like a demon</span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<!-- three.js removed: the sword-lady is replaced by the GSAP reading scene -->
+<script>
+(function(){
+'use strict';
+gsap.registerPlugin(ScrollTrigger);
+var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var FINE = window.matchMedia('(pointer: fine)').matches;
+
+/* ---------- lights toggle — dramatic invert surprise ---------- */
+var lightOn = localStorage.getItem('juryai.lights') === 'on';
+function paintLights(){
+  document.documentElement.toggleAttribute('data-light', lightOn);
+  var s = document.getElementById('light-state'), sm = document.getElementById('light-state-m');
+  var t = lightOn ? 'on' : 'off';
+  if(s) s.textContent = t;
+  if(sm) sm.textContent = t;
+}
+function toggleLights(){ lightOn = !lightOn; localStorage.setItem('juryai.lights', lightOn ? 'on' : 'off'); paintLights(); }
+paintLights();
+var lt = document.getElementById('light-toggle'), ltm = document.getElementById('light-toggle-m');
+if(lt) lt.addEventListener('click', toggleLights);
+if(ltm) ltm.addEventListener('click', toggleLights);
+
+/* ---------- headline: split lines into masked words ---------- */
+document.querySelectorAll('[data-split]').forEach(function(el){
+  Array.prototype.forEach.call(el.querySelectorAll(':scope > span'), function(line){
+    line.innerHTML = line.innerHTML.trim().split(/\s+/).map(function(w){
+      return '<span class="mask"><span class="mask-word">'+w+'</span></span>';
+    }).join(' ');
+  });
+});
+gsap.timeline({delay:.15}).to('#hero-headline .mask-word',{y:0,duration:.9,stagger:.07,ease:'power3.out'});
+gsap.fromTo('[data-hero="1"]',{opacity:0,y:18},{opacity:1,y:0,duration:.6,delay:.1,ease:'power2.out'});
+gsap.fromTo('[data-hero="2"]',{opacity:0,y:18},{opacity:1,y:0,duration:.6,delay:.65,ease:'power2.out'});
+gsap.fromTo('[data-hero="3"]',{opacity:0,y:18},{opacity:1,y:0,duration:.6,delay:.8,ease:'power2.out'});
+gsap.fromTo('[data-hero="4"]',{opacity:0,y:18},{opacity:1,y:0,duration:.6,delay:.95,ease:'power2.out'});
+gsap.fromTo('[data-hero="5"]',{opacity:0,scale:.96},{opacity:1,scale:1,duration:.9,delay:.4,ease:'power3.out'});
+
+/* ---------- counter-up ---------- */
+document.querySelectorAll('[data-counter]').forEach(function(el){
+  var target = parseFloat(el.getAttribute('data-counter'));
+  var suffix = el.getAttribute('data-suffix') || '';
+  var obj = { v: 0 };
+  ScrollTrigger.create({
+    trigger: el, start: 'top 88%', once: true,
+    onEnter: function(){
+      gsap.to(obj, { v: target, duration: 1.6, ease: 'power2.out',
+        onUpdate: function(){
+          el.textContent = obj.v.toFixed(target % 1 === 0 ? 0 : 1) + suffix;
+        }
+      });
+    }
+  });
+});
+
+/* ---------- reveal ---------- */
+ScrollTrigger.batch('[data-reveal]', {
+  start: 'top 92%',
+  onEnter: function(batch){ batch.forEach(function(el){ el.classList.add('is-in'); }); }
+});
+
+/* ---------- docket tape duplication for seamless loop ---------- */
+(function(){
+  var t = document.getElementById('docket-track');
+  if(!t) return;
+  t.innerHTML += t.innerHTML;
+})();
+
+/* ---------- evidence board: horizontal scroll ---------- */
+var track = document.getElementById('board-track');
+var viewport = document.getElementById('board-viewport');
+if(track && viewport && !REDUCED){
+  var dist = function(){ return track.scrollWidth - viewport.clientWidth; };
+  gsap.to(track, {
+    x: function(){ return -dist(); },
+    ease: 'none',
+    scrollTrigger: {
+      trigger: viewport, pin: true, scrub: 1, anticipatePin: 1,
+      start: 'top top', end: function(){ return '+=' + dist(); }
+    }
+  });
+}
+if(track && viewport && REDUCED){
+  viewport.style.overflowX = 'auto';
+}
+
+/* ---------- mobile menu ---------- */
+var menuBtn = document.getElementById('menu-btn');
+var menu = document.getElementById('mobile-menu');
+if(menuBtn && menu){
+  menuBtn.addEventListener('click', function(){
+    var open = menu.classList.toggle('hidden');
+    menuBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  });
+  menu.querySelectorAll('a').forEach(function(a){
+    a.addEventListener('click', function(){ menu.classList.add('hidden'); menuBtn.setAttribute('aria-expanded','false'); });
+  });
+}
+
+/* ---------- custom cursor ---------- */
+if(FINE){
+  var dot = document.getElementById('cursor-dot');
+  var ring = document.getElementById('cursor-ring');
+  if(dot && ring){
+    var dx = gsap.quickTo(dot,'x',{duration:.1,ease:'power2.out'});
+    var dy = gsap.quickTo(dot,'y',{duration:.1,ease:'power2.out'});
+    var rx = gsap.quickTo(ring,'x',{duration:.35,ease:'power3.out'});
+    var ry = gsap.quickTo(ring,'y',{duration:.35,ease:'power3.out'});
+    window.addEventListener('mousemove',function(e){
+      dx(e.clientX); dy(e.clientY); rx(e.clientX); ry(e.clientY);
+    });
+    document.querySelectorAll('a,button,[data-app-q]').forEach(function(el){
+      el.addEventListener('mouseenter',function(){ gsap.to(ring,{scale:1.8,opacity:.35,duration:.25}); });
+      el.addEventListener('mouseleave',function(){ gsap.to(ring,{scale:1,opacity:.9,duration:.25}); });
+    });
+    document.documentElement.addEventListener('mouseleave',function(){ ring.style.opacity=0; dot.style.opacity=0; });
+    document.documentElement.addEventListener('mouseenter',function(){ ring.style.opacity=.9; dot.style.opacity=1; });
+  }
+}
+
+/* ---------- magnetic bits ---------- */
+if(!REDUCED){
+  document.querySelectorAll('[data-magnetic]').forEach(function(el){
+    el.addEventListener('mousemove', function(e){
+      var r = el.getBoundingClientRect();
+      var x = (e.clientX - r.left - r.width/2) * 0.16;
+      var y = (e.clientY - r.top - r.height/2) * 0.2;
+      gsap.to(el, { x:x, y:y, duration:.2, ease:'power2.out' });
+    });
+    el.addEventListener('mouseleave', function(){ gsap.to(el, { x:0, y:0, duration:.35, ease:'power3.out' }); });
+  });
+
+  /* book tilt */
+  document.querySelectorAll('[data-tilt]').forEach(function(el){
+    el.addEventListener('mousemove', function(e){
+      var r = el.getBoundingClientRect();
+      var rx = ((e.clientY - r.top)/r.height - .5) * -7;
+      var ry = ((e.clientX - r.left)/r.width - .5) * 9;
+      gsap.to(el, { rotationX:rx, rotationY:ry, transformPerspective:600, duration:.2 });
+    });
+    el.addEventListener('mouseleave', function(){ gsap.to(el, { rotationX:0, rotationY:0, duration:.4, ease:'power3.out' }); });
+  });
+}
+
+/* ---------- docket stamp breather on the CTA ---------- */
+gsap.to('#file .stamp', { rotation: -2, duration: 2.2, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+
+/* ---------- scroll velocity hook for three.js ---------- */
+var lastScrollY = window.scrollY;
+var scrollBoost = 0;
+ScrollTrigger.create({
+  onUpdate:function(self){ scrollBoost = Math.min(Math.abs(self.getVelocity())/12000, 1.2); }
+});
+
+/* ---------- refresh hardening (fonts / load timing) ---------- */
+window.addEventListener('load', function(){ ScrollTrigger.refresh(); });
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(function(){ ScrollTrigger.refresh(); });
+}
+setTimeout(function(){ ScrollTrigger.refresh(); }, 900);
+window.__juryai = { REDUCED:REDUCED, get scrollBoost(){ return scrollBoost; } };
+
+/* ---------- app deep-links: every CTA drives into the live app ---------- */
+var APP_URL = 'http://localhost:5174';
+function appHref(query){
+  return APP_URL + '/#/app' + (query ? '?q=' + encodeURIComponent(query) : '');
+}
+document.querySelectorAll('[data-app-cta]').forEach(function(el){
+  el.href = appHref(el.getAttribute('data-app-q') || '');
+});
+document.querySelectorAll('[data-app-q]:not([data-app-cta])').forEach(function(el){
+  el.addEventListener('click', function(){
+    window.location.href = appHref(el.getAttribute('data-app-q'));
+  });
+});
+})();
+</script>
+<script>
+/* ═══════════════ THE CONSTITUTION DESK — interactive volume (landing) ═══════════════ */
+(function(){
+'use strict';
+var wrap = document.getElementById('judge-wrap');
+var scene = document.getElementById('research-scene');
+var stage = document.getElementById('scene-stage');
+if(!wrap || !scene || !stage) return;
+
+var SPREADS = [
+  { n:'I', name:'THE PREAMBLE', kicker:'CONSTITUTION OF INDIA', title:'THE PREAMBLE',
+    lines:['WE, THE PEOPLE OF','INDIA — SOVEREIGN','SOCIALIST SECULAR','DEMOCRATIC REPUBLIC,','securing JUSTICE,','LIBERTY, EQUALITY,','FRATERNITY, and the','dignity of all.'],
+    hl:'DEMOCRATIC REPUBLIC', foot:['ADOPTED 26 NOV 1949','IN FORCE 26 JAN 1950'],
+    card:{ kicker:'SPREAD I · IV', title:'PREAMBLE NOTE', lines:['Adopted 26 Nov 1949,','in force since','26 Jan 1950 —','Republic Day. Its','words govern every','law of India.'], foot:'THE CONSTITUTION' } },
+  { n:'II', name:'FUNDAMENTAL RIGHTS', kicker:'PART III · ARTS. 12–35', title:'FUNDAMENTAL RIGHTS',
+    lines:['Art. 14 — equality','before the law.','Art. 19 — six','freedoms. Art. 21 —','life and liberty,','by a just procedure.','ART. 32 — remedies','are fundamental.'],
+    hl:'ART. 32', foot:'PART III · CONSTITUTION OF INDIA',
+    card:{ kicker:'SPREAD II · IV', title:'THE GUARANTEE', lines:['Rights enforceable','against the State,','guarded by the','courts through','writs.'], foot:'CONSTITUTION OF INDIA' } },
+  { n:'III', name:'THE RESEARCH DESK', kicker:'HOW JURYAI WORKS', title:'ASK · RETRIEVE · CITE',
+    lines:['You ask in plain','language. We open','statutes, precedents,','commentary — every','source scored,','reranked, cited.','Claims stop at the','groundedness gate.'],
+    hl:'groundedness gate', foot:'JURYAI · LEGAL RESEARCH',
+    card:{ kicker:'SPREAD III · IV', title:'THE PIPELINE', lines:['Question → sources','→ evidence rank','→ citable answer','with verdict.'], foot:'LEGAL RESEARCH SYSTEM' } },
+  { n:'IV', name:'ASK THE DESK', kicker:'TRY A MATTER', title:'ASK THE DESK',
+    asks:['§ 302 IPC — punishment?','Bail under CrPC 439?','Art. 21 — key cases?'],
+    foot:'JURYAI · LEGAL RESEARCH',
+    card:{ kicker:'SPREAD IV · IV', title:'A MATTER', lines:['Type a question or','tap a prompt — the','desk opens the law','with sources.'], foot:'LEGAL RESEARCH SYSTEM' } },
+];
+
+/* ---- build the Ashoka wheel ---- */
+(function(){
+  function chakra(){
+    var spokes = '';
+    for(var k = 0; k < 24; k++) spokes += '<line x1="30" y1="30" x2="30" y2="4" transform="rotate(' + (k*15) + ' 30 30)" stroke="#d4af37" stroke-width="2"/>';
+    return '<svg width="44" height="44" viewBox="0 0 60 60" fill="none"><circle cx="30" cy="30" r="26" stroke="#d4af37" stroke-width="2"/><circle cx="30" cy="30" r="20" stroke="#d4af37" stroke-width="1" opacity="0.6"/><circle cx="30" cy="30" r="3.5" fill="#d4af37"/>' + spokes + '</svg>';
+  }
+  var wheel = stage.querySelector('[data-wheel]');
+  if(wheel) wheel.innerHTML = chakra();
+})();
+
+/* ---- face builder ---- */
+function faceHtml(s){
+  var h = s.hl ? '<div class="rs-curl"></div>' : '';
+  if(s.kicker) h += '<span class="rs-fk">' + s.kicker + '</span>';
+  if(s.title) h += '<span class="rs-ft">' + s.title + '</span>';
+  if(s.lines && s.lines.length){
+    h += '<div class="rs-txt">';
+    s.lines.forEach(function(t){
+      if(s.hl && t.indexOf(s.hl) > -1){
+        var parts = t.split(s.hl);
+        h += '<div class="rs-ln">' + parts[0] + '<span class="rs-hl" data-hl>' + s.hl + '</span>' + parts[1] + '</div>';
+      } else {
+        h += '<div class="rs-ln">' + t + '</div>';
+      }
+    });
+    h += '</div>';
+  }
+  if(s.asks && s.asks.length){
+    h += '<div style="margin-top:2px;display:flex;flex-direction:column;gap:5px">';
+    s.asks.forEach(function(q){
+      h += '<button type="button" class="rs-ask" data-ask="' + encodeURIComponent(q) + '">→ ' + q + '</button>';
+    });
+    h += '</div>';
+  }
+  if(s.foot){
+    var foots = Array.isArray(s.foot) ? s.foot : [s.foot];
+    h += '<div class="rs-ff">' + foots.map(function(f){ return '<div>' + f + '</div>'; }).join('') + '</div>';
+  }
+  return h;
+}
+var lpage = stage.querySelector('.rs-l');
+if(lpage) lpage.innerHTML = faceHtml({ kicker:'THE CONSTITUTION', title:'What it is', lines:['The supreme law of','India — 395 articles,','12 schedules, 105+','amendments: the','longest written','constitution of any','sovereign nation.'], foot:'भारत का संविधान' });
+var rpage = stage.querySelector('.rs-r');
+if(rpage) rpage.innerHTML = faceHtml(SPREADS[0]);
+var leaves = stage.querySelectorAll('[data-leaf]');
+[].forEach.call(leaves, function(leaf, i){
+  var s = SPREADS[i]; if(!s) return;
+  var faces = leaf.querySelectorAll('.rs-face');
+  if(faces[0]) faces[0].innerHTML = faceHtml(s);
+  if(faces[1]) faces[1].innerHTML = faceHtml(s.card);
+  var rest = document.createElement('div');
+  rest.className = 'rs-rest';
+  rest.innerHTML = faceHtml(s.card);
+  document.getElementById('rs-book').appendChild(rest);
+});
+
+/* prompt chips drive into the app (same tab); never let a tap inside the book bubble */
+var engaged = false;
+[].forEach.call(stage.querySelectorAll('[data-ask]'), function(b){
+  b.addEventListener('click', function(e){
+    if(e && e.stopPropagation) e.stopPropagation();
+    engaged = true;
+    stopAuto();
+    if(hint){ hint.style.opacity = 0; hint.style.transition = 'opacity .6s ease-out'; }
+    location.href = 'http://localhost:5174/#/app?q=' + b.getAttribute('data-ask');
+  });
+});
+
+/* ---- scale the stage into its host ---- */
+var BASE_W = 480, BASE_H = 520;
+function scale(){
+  var w = wrap.clientWidth || 560, h = wrap.clientHeight || 520;
+  var s = Math.min(w / BASE_W, h / BASE_H) * 0.92;
+  stage.style.transform = 'translate(-50%,-50%) scale(' + s + ')';
+}
+scale();
+window.addEventListener('resize', scale);
+window.addEventListener('load', scale);
+if(!window.gsap) return;
+
+var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var wheel = stage.querySelector('[data-wheel]');
+var bobs = stage.querySelectorAll('[data-bob]');
+var gavels = stage.querySelectorAll('[data-gavel]');
+var book = document.getElementById('rs-book');
+var dotsHost = stage.querySelector('[data-pager]');
+var plabel = stage.querySelector('[data-plabel]');
+var hint = stage.querySelector('[data-hint]');
+var total = leaves.length;
+var idx = 0;
+
+/* ---- pager ---- */
+var dots = [];
+[].forEach.call(SPREADS.slice(0, total), function(s, i){
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'rs-dot';
+  b.textContent = s.n;
+  b.addEventListener('click', function(){ engage(); goTo(i); beat(); });
+  dotsHost.appendChild(b);
+  dots.push(b);
+});
+function paint(){
+  dots.forEach(function(d, i){ d.className = 'rs-dot' + (i === idx ? ' on' : ''); });
+  if(plabel) plabel.textContent = 'SPREAD ' + SPREADS[idx].n + ' · ' + total + ' — ' + SPREADS[idx].name;
+}
+
+/* ---- turning. At rest NOTHING is 3D: a flipped leaf hides and its flat
+   .rs-rest page (no transform) takes its place — text re-rasterizes natively,
+   crisp. 3D (book perspective) exists only during the ~1s of an actual turn. ---- */
+var flipCount = 0;
+function ensure3D(){ flipCount += 1; gsap.set(book, { perspective: 1300 }); }
+function settle3D(){ flipCount = Math.max(0, flipCount - 1); if(flipCount === 0) gsap.set(book, { perspective: 'none' }); }
+function rests(i){ return stage.querySelectorAll('.rs-rest')[i]; }
+function flipForward(i, delay){
+  var leaf = leaves[i];
+  ensure3D();
+  gsap.set(leaf, { zIndex: 40, visibility: 'visible' });
+  gsap.to(leaf, { rotationY: -180, z: 8, duration: 1.05, delay: delay, ease: 'power2.inOut',
+    onComplete: function(){
+      gsap.set(leaf, { z: 0, zIndex: 20, visibility: 'hidden' });
+      rests(i).classList.add('on');
+      settle3D();
+    } });
+  var curl = leaf.querySelector('.rs-curl');
+  if(curl){ gsap.fromTo(curl, { xPercent: 60, opacity: 0 }, { xPercent: -130, opacity: 0.9, duration: 0.85, delay: delay, ease: 'power1.in' }); gsap.to(curl, { opacity: 0, duration: 0.35, delay: delay + 0.75 }); }
+  var nextLeaf = leaves[i + 1];
+  if(nextLeaf){ var hl = nextLeaf.querySelector('[data-hl]'); if(hl) gsap.fromTo(hl, { scaleX: 0 }, { scaleX: 1, duration: 0.55, delay: delay + 0.95, ease: 'power2.out' }); }
+}
+function flipBackward(i, delay){
+  var leaf = leaves[i];
+  ensure3D();
+  rests(i).classList.remove('on');
+  gsap.set(leaf, { zIndex: 40, rotationY: -180, z: 8, visibility: 'visible' });
+  gsap.to(leaf, { rotationY: 0, z: 8, duration: 0.85, delay: delay, ease: 'power2.inOut',
+    onComplete: function(){ gsap.set(leaf, { z: 0, zIndex: 20 }); settle3D(); } });
+  var curl = leaf.querySelector('.rs-curl');
+  if(curl) gsap.fromTo(curl, { xPercent: -130, opacity: 0.6 }, { xPercent: 60, opacity: 0, duration: 0.7, delay: delay, ease: 'power1.out' });
+}
+function collapseLeaf(i){
+  gsap.set(leaves[i], { rotationY: -180, z: 0, zIndex: 20, visibility: 'hidden' });
+  rests(i).classList.add('on');
+}
+function restoreLeaf(i){
+  gsap.set(leaves[i], { rotationY: 0, z: 0, zIndex: 20, visibility: 'visible' });
+  rests(i).classList.remove('on');
+}
+function goTo(target, instant){
+  if(target === idx) return;
+  var cur = idx;
+  idx = target;
+  if(target > cur){
+    for(var k = cur; k < target; k++){
+      if(instant) collapseLeaf(k);
+      else flipForward(k, (k - cur) * 0.16);
+    }
+  } else {
+    for(var m = cur - 1; m >= target; m--){
+      if(instant) restoreLeaf(m);
+      else flipBackward(m, (cur - 1 - m) * 0.1);
+    }
+  }
+  paint();
+  if(!instant && hint){ hint.style.opacity = 0; hint.style.transition = 'opacity .6s ease-out'; }
+}
+function next(){ goTo(idx + 1 === total ? 0 : idx + 1); }
+
+/* ---- one gavel beat per interaction ---- */
+var tapOnce = null;
+function beat(){
+  if(REDUCED || !gavels.length) return;
+  if(tapOnce) tapOnce.kill();
+  tapOnce = gsap.timeline()
+    .to(gavels, { rotate: -7, duration: 0.12, ease: 'power2.in' })
+    .to(gavels, { rotate: 0, duration: 0.3, ease: 'power2.out' });
+}
+
+/* ---- interactions ---- */
+function engage(){
+  engaged = true;
+  stopAuto();
+  if(hint){ hint.style.opacity = 0; hint.style.transition = 'opacity .6s ease-out'; }
+}
+book.addEventListener('click', function(){ engage(); next(); beat(); });
+
+/* ---- auto-turn, paused while you look at it; stopped once you engage ---- */
+var timer = null;
+function stopAuto(){ if(timer){ clearInterval(timer); timer = null; } }
+function startAuto(){
+  if(REDUCED || engaged) return;
+  stopAuto();
+  timer = setInterval(next, 7000);
+}
+scene.addEventListener('mouseenter', stopAuto);
+scene.addEventListener('mouseleave', startAuto);
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden) stopAuto();
+  else startAuto();
+});
+
+/* ---- ambient: the wheel above, the shelf breathing, the book adrift (2D only) ---- */
+var spin = gsap.to(wheel, { rotation: 360, duration: 24, repeat: -1, ease: 'none' });
+var bob = gsap.timeline({ repeat: -1, defaults: { ease: 'sine.inOut' } });
+if(bobs.length) bob.to(bobs, { y: -6, duration: 2.2, stagger: 0.2 }).to(bobs, { y: 0, duration: 2.2, stagger: 0.2 });
+var lift = REDUCED ? null : gsap.to(book, { y: -4, duration: 1.7, repeat: -1, yoyo: true, ease: 'sine.inOut' });
+
+paint();
+startAuto();
+
+window.__rsScene = {
+  next: next, goTo: goTo, idx: function(){ return idx; },
+  kill: function(){
+    stopAuto();
+    if(tapOnce) tapOnce.kill();
+    spin.kill(); bob.kill(); if(lift) lift.kill();
+    gsap.set(book, { perspective: 'none' });
+  }
+};
+})();
+</script>
+</body>
+</html>

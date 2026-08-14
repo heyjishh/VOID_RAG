@@ -30,7 +30,7 @@ export default function ThemeToggle() {
               color: active ? 'var(--on-primary)' : 'var(--text-secondary)',
               border: 'none',
               cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "var(--font-sans)",
             }}
           >
             {opt.label}

@@ -1,5 +1,5 @@
 from app.core.retrieval.hybrid import reciprocal_rank_fusion
-from app.core.retrieval.citation import derive_citations
+from app.core.retrieval.citation import derive_citations, cited_indices
 from app.api.v1.chat import _build_source_chunks, _source_chunks_from_evidence
 from unittest.mock import patch, MagicMock
 
@@ -40,6 +40,27 @@ def test_citation_unverified_when_no_claim_references_content_hash():
     verification = {"supported_claims": []}
     results = derive_citations(verification, evidence)
     assert all(not r["verified"] for r in results)
+
+
+def test_citation_cited_reflects_bracket_marker_independent_of_verified():
+    """A chunk can be cited ([N] appears in the answer) without being verified
+    (no supported_claims reference its content_hash), and vice versa."""
+    evidence = [
+        {"text": "cited but ungrounded", "source": "a.pdf", "page": 0, "content_hash": "h1"},
+        {"text": "grounded but never cited", "source": "b.pdf", "page": 0, "content_hash": "h2"},
+    ]
+    verification = {"supported_claims": [{"claim": "x", "content_hash": "h2"}]}
+    results = derive_citations(verification, evidence, answer="Only [1] is mentioned here.")
+
+    assert results[0]["cited"] is True and results[0]["verified"] is False
+    assert results[1]["cited"] is False and results[1]["verified"] is True
+    assert cited_indices(results) == {1}
+
+
+def test_citation_cited_defaults_false_without_answer_text():
+    evidence = [{"text": "x", "source": "a.pdf", "page": 0, "content_hash": "h1"}]
+    results = derive_citations({"supported_claims": []}, evidence)
+    assert results[0]["cited"] is False
 
 
 def test_reranker_orders_by_cross_encoder_score():
@@ -97,3 +118,37 @@ def test_source_chunks_from_evidence_defaults_to_internal_when_domain_absent():
     evidence = [{"text": "text", "source": "ipc.pdf", "page": 0, "score": 0.5}]
     chunks = _source_chunks_from_evidence(evidence, set())
     assert chunks[0].domain == "internal"
+
+
+def test_source_chunks_from_evidence_index_survives_dropped_items():
+    """A [N] marker in the answer maps to citations[N-1], where citations is
+    derived from the same `evidence` list with no items skipped. But
+    _source_chunks_from_evidence DOES skip empty-text items, so the frontend's
+    array position for a chunk can drift from N-1 once an earlier item is
+    dropped. `index` must carry the item's true 1-based position in `evidence`
+    so the frontend can key off it instead of array position, or the citation
+    linking silently points at the wrong SourceCard."""
+    evidence = [
+        {"text": "first", "source": "a.pdf", "page": 0, "score": 0.9},
+        {"text": "", "source": "b.pdf", "page": 0, "score": 0.8},  # dropped
+        {"text": "third", "source": "c.pdf", "page": 0, "score": 0.7},
+    ]
+    chunks = _source_chunks_from_evidence(evidence, set())
+    assert len(chunks) == 2
+    assert [c.index for c in chunks] == [1, 3]
+
+
+def test_build_source_chunks_index_survives_dropped_items():
+    """Same contract as _source_chunks_from_evidence, for the legacy
+    _build_source_chunks path (used by the legal_chunks-only fallback)."""
+    result = {
+        "legal_chunks": [
+            {"text": "first", "source": "a.pdf", "page": 0, "score": 0.9},
+            {"text": "", "source": "b.pdf", "page": 0, "score": 0.8},  # dropped
+            {"text": "third", "source": "c.pdf", "page": 0, "score": 0.7},
+        ],
+        "citations": [],
+    }
+    chunks, _ = _build_source_chunks(result)
+    assert len(chunks) == 2
+    assert [c.index for c in chunks] == [1, 3]
