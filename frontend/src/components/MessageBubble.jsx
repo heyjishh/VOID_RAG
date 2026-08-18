@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo, useState } from 'react'
 import gsap from 'gsap'
 import { marked } from 'marked'
 import VerificationBadge from './VerificationBadge.jsx'
@@ -33,15 +33,26 @@ function injectCitations(html, citations) {
     const tip = cite.quote
       ? `“${cite.quote}” — ${cite.verified ? 'matched to source' : 'not directly matched, verify manually'}`
       : (cite.verified ? 'Matched to source text' : 'Not directly matched to source text — verify manually')
-    const color = cite.verified ? 'var(--sage)' : 'var(--text-secondary)'
-    const bg = cite.verified ? 'var(--sage-light)' : 'var(--bg-soft)'
-    const border = cite.verified ? 'var(--sage-border)' : 'var(--border-default)'
+    const color = cite.verified ? 'var(--sage)' : 'var(--color-error)'
+    const bg = cite.verified ? 'var(--sage-light)' : 'var(--color-error-bg)'
+    const border = cite.verified ? 'var(--sage-border)' : 'var(--color-error-border)'
     return (
       `<button type="button" class="citation-ref" data-cite="${num}" ` +
       `title="${escapeAttr(tip)}" ` +
       `style="color:${color};background:${bg};border:1px solid ${border}">${num}</button>`
     )
   })
+}
+
+// Tokens keep arriving mid-paragraph, so the caret nearly always belongs
+// right before the block tag that's still open when a chunk lands — this
+// covers the common cases. If the HTML ends on something else (a just-closed
+// table/list), the caller falls back to a trailing sibling caret instead.
+const INLINE_SAFE_CLOSE = /(<\/(?:p|li|td|th|h[1-6]|blockquote|em|strong|code)>)\s*$/i
+
+function appendStreamCaret(html, blink) {
+  const caret = `<span class="stream-caret${blink ? ' stream-caret-blink' : ''}" aria-hidden="true"></span>`
+  return INLINE_SAFE_CLOSE.test(html) ? html.replace(INLINE_SAFE_CLOSE, `${caret}$1`) : null
 }
 
 function ScalesIcon({ size = 13, color = 'currentColor' }) {
@@ -70,7 +81,9 @@ function DownloadIcon({ size = 12, color = 'currentColor' }) {
 
 export default function MessageBubble({ message, onRefine }) {
   const bubbleRef = useRef(null)
+  const contentRef = useRef(null)
   const isUser = message.role === 'user'
+  const [downloadError, setDownloadError] = useState('')
 
   useEffect(() => {
     if (!bubbleRef.current || prefersReducedMotion()) return
@@ -88,6 +101,17 @@ export default function MessageBubble({ message, onRefine }) {
     try { return injectCitations(marked.parse(text), message.citations) } catch { return null }
   }, [isUser, text, message.citations])
 
+  // Each SSE token replaces the whole innerHTML block (markdown re-parses
+  // from scratch), so per-character DOM animation isn't feasible here — this
+  // gives the token-by-token growth a soft "settling in" cue instead of an
+  // instant pop, re-triggered on every token while streaming.
+  useEffect(() => {
+    if (!message.streaming || !contentRef.current || prefersReducedMotion()) return
+    gsap.killTweensOf(contentRef.current)
+    gsap.fromTo(contentRef.current, { opacity: 0.55 }, { opacity: 1, duration: 0.18, ease: 'power2.out' })
+    return () => gsap.killTweensOf(contentRef.current)
+  }, [text, message.streaming])
+
   // Event delegation: one handler for every [N] badge in the rendered answer.
   function handleCitationClick(e) {
     const badge = e.target.closest('.citation-ref')
@@ -104,6 +128,49 @@ export default function MessageBubble({ message, onRefine }) {
     const suffix = withCitations ? 'cited' : 'clean'
     downloadTextFile(`juryai-answer-${suffix}.md`, md)
   }
+
+  // Download PDF/DOCX from the lightweight /chat/download-{pdf,docx}
+  // endpoints. Unlike /chat/download, these do NOT re-run the chat
+  // pipeline — they generate a file from the already-rendered answer data.
+  async function handleDownloadFile(format, withCitations) {
+    setDownloadError('')
+    try {
+      const response = await fetch(`/api/v1/chat/download-${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': localStorage.getItem('juryai.token') ? `Bearer ${localStorage.getItem('juryai.token')}` : ''
+        },
+        body: JSON.stringify({
+          question: message.question,
+          answer: text,
+          citations: message.citations || [],
+          source_chunks: message.source_chunks || [],
+          verification: message.verification || null,
+          include_citations: withCitations,
+        }),
+      })
+      if (!response.ok) throw new Error(`Failed to download ${format.toUpperCase()} (${response.status})`)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `juryai-answer-${withCitations ? 'with-citations' : 'plain'}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      console.error(`${format.toUpperCase()} download failed:`, err)
+      setDownloadError(`Couldn't download the ${format.toUpperCase()} — the server may be unreachable. Try again in a moment.`)
+    }
+  }
+
+  const inlineCaretHtml = message.streaming && htmlContent
+    ? appendStreamCaret(htmlContent, !prefersReducedMotion())
+    : null
+  const streamHtml = inlineCaretHtml ?? htmlContent
+  const needsSiblingCaret = message.streaming && !inlineCaretHtml
 
   return (
     <div
@@ -165,10 +232,23 @@ export default function MessageBubble({ message, onRefine }) {
         {/* Content */}
         {isUser ? (
           <p className="m-0 whitespace-pre-wrap">{text}</p>
-        ) : htmlContent ? (
-          <div className="prose-md" onClick={handleCitationClick} dangerouslySetInnerHTML={{ __html: htmlContent }} />
         ) : (
-          <p className="m-0 whitespace-pre-wrap">{text}</p>
+          <div ref={contentRef}>
+            {htmlContent ? (
+              <div className="prose-md" onClick={handleCitationClick} dangerouslySetInnerHTML={{ __html: streamHtml }} />
+            ) : (
+              <p className="m-0 whitespace-pre-wrap">{text}</p>
+            )}
+            {/* Sibling fallback caret — only when inline injection found no
+                safe insertion point (htmlContent null, or html didn't end on
+                an inline-safe tag, e.g. mid-table/list). */}
+            {needsSiblingCaret && (
+              <span
+                className={`stream-caret ${prefersReducedMotion() ? '' : 'stream-caret-blink'}`}
+                aria-hidden="true"
+              />
+            )}
+          </div>
         )}
 
         {/* Answer dossier — the trust apparatus below the prose, ordered by
@@ -191,7 +271,7 @@ export default function MessageBubble({ message, onRefine }) {
             )}
 
             {/* Citations — claim-level grounding, hover for the matched quote */}
-            <CitationStrip citations={message.citations} />
+            <CitationStrip citations={message.citations} sourceChunks={message.source_chunks} />
 
             {/* Provenance — quietest line: how the answer was classified and
                 how many passages it drew on. */}
@@ -219,29 +299,40 @@ export default function MessageBubble({ message, onRefine }) {
         {/* Export — quiet hover/focus-revealed actions: take the answer as a
             Markdown file, with the [N] markers + a Sources list, or clean prose. */}
         {!isUser && !message.streaming && text && (
-          <div className="mt-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-            <DownloadIcon size={11} color="var(--text-muted)" />
-            {[
-              { label: 'with citations', cited: true },
-              { label: 'plain', cited: false },
-            ].map(({ label, cited }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => handleDownload(cited)}
-                className="text-[10.5px] leading-none px-2 py-1 rounded-md transition-colors"
-                style={{
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-soft)',
-                }}
-                title={cited
-                  ? 'Download answer with [N] citation markers and a sources list'
-                  : 'Download answer as clean prose, citation markers stripped'}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="mt-3 flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+              <DownloadIcon size={11} color="var(--text-muted)" />
+              {[
+                { label: 'PDF (with citations)', format: 'pdf', cited: true },
+                { label: 'PDF (plain)', format: 'pdf', cited: false },
+                { label: 'DOCX (with citations)', format: 'docx', cited: true },
+                { label: 'DOCX (plain)', format: 'docx', cited: false },
+                { label: 'Markdown (with citations)', format: 'md', cited: true },
+                { label: 'Markdown (plain)', format: 'md', cited: false },
+              ].map(({ label, format, cited }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => format === 'md' ? handleDownload(cited) : handleDownloadFile(format, cited)}
+                  className="text-[10.5px] leading-none px-2 py-1 rounded-md transition-colors"
+                  style={{
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-default)',
+                    background: 'var(--bg-soft)',
+                  }}
+                  title={format !== 'md'
+                    ? (cited ? `Download answer with [N] citation markers and a sources list as ${format.toUpperCase()}` : `Download answer as clean prose, citation markers stripped, as ${format.toUpperCase()}`)
+                    : (cited ? 'Download answer with [N] citation markers and a sources list' : 'Download answer as clean prose, citation markers stripped')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {downloadError && (
+              <p className="text-[10.5px] leading-snug m-0" style={{ color: 'var(--danger, #c0392b)' }} role="alert">
+                {downloadError}
+              </p>
+            )}
           </div>
         )}
       </div>

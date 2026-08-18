@@ -158,7 +158,7 @@ function BrandPanel() {
             </svg>
           </div>
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.01em' }}>
-            JurAI
+            Juris AI
           </span>
         </div>
         <span style={stamp}>FILE NO. AUTH-2026</span>
@@ -454,7 +454,7 @@ export default function AuthPage({ mode, onAuthed, onSwitchMode }) {
                     Forgot password?
                   </button>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                    {isSignup ? 'Have a docket?' : 'New to JurAI?'}{' '}
+                    {isSignup ? 'Have a docket?' : 'New to Juris AI?'}{' '}
                     <button
                       type="button"
                       onClick={() => switchMode(isSignup ? 'login' : 'signup')}

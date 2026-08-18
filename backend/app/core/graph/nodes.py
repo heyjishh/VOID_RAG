@@ -1,6 +1,6 @@
 from __future__ import annotations
 from urllib.parse import urlparse
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from app.config.settings import settings
 from app.core.graph.state import JuryAIState
 from app.core.llm.provider import get_llm
@@ -17,7 +17,9 @@ your sources by placing that exact number inline immediately after the claim it
 supports — like [1] or [2] — combining them as [1][3] when a claim draws on more
 than one. Use only the numbers shown; never renumber, merge, or invent them.
 Quote pivotal statutory or holding language in double-quotes. If the context is
-insufficient, say so plainly — never hallucinate.
+insufficient, say so plainly — never hallucinate. If the evidence only covers a
+predecessor or superseded statute/section rather than the one actually asked
+about, say so explicitly instead of presenting it as directly on-point.
 
 Style:
 - When analyzing a specific case or precedent, break it down as labeled bullets
@@ -35,6 +37,9 @@ Style:
 - When the answer lays out multiple alternative options or remedies, present them
   as a markdown comparison table.
 
+Output format:
+{format_instructions}
+{as_of_clause}
 Conversation so far (for follow-up context only — do NOT treat as evidence):
 {history}
 
@@ -47,6 +52,44 @@ Web Context:
 {web_ctx}
 
 Answer:"""
+
+
+_FORMAT_INSTRUCTIONS = {
+    "CREAC": (
+        "Structure the answer with these exact markdown section headers, in order:\n"
+        "## Conclusion\nA short, direct answer to the question (2-4 sentences).\n"
+        "## Rule\nThe governing statutes, sections, and legal tests that apply.\n"
+        "## Explanation\nCase law elaborating the rule (use the labeled-bullet case style above where applicable).\n"
+        "## Application\nApply the rule to the facts in the question.\n"
+        "## Conclusion\nRestate the answer in light of the analysis above."
+    ),
+    "IRAC": (
+        "Structure the answer with these exact markdown section headers, in order:\n"
+        "## Issue\n## Rule\n## Application\n## Conclusion"
+    ),
+    "BRIEF": (
+        "Write a concise legal memo in plain prose paragraphs. Do NOT use CREAC or IRAC "
+        "section headers — keep it tight and direct."
+    ),
+}
+
+
+def answer_format_instructions(output_format: str) -> str:
+    return _FORMAT_INSTRUCTIONS.get((output_format or "CREAC").upper(), _FORMAT_INSTRUCTIONS["CREAC"])
+
+
+_AS_OF_CLAUSE = (
+    "\nThe user is asking as of {date}. Answer strictly using the law as it stood on that "
+    "date — apply the version of each statute/section in force then. If a provision was later "
+    "amended, repealed, or renumbered (e.g. IPC 1860 -> Bharatiya Nyaya Sanhita 2023, CrPC 1973 "
+    "-> Bharatiya Nagarik Suraksha Sanhita 2023, Evidence Act 1872 -> Bharatiya Sakshya Adhiniyam "
+    "2023, all effective 1 July 2024), use the version applicable on {date} and state which one "
+    "you used.\n"
+)
+
+
+def as_of_clause(as_of_date: str | None) -> str:
+    return _AS_OF_CLAUSE.format(date=as_of_date) if as_of_date else ""
 
 
 def _domain_of(url: str) -> str:
@@ -74,10 +117,14 @@ async def legal_retrieve_node(state: JuryAIState, qdrant=None, quickwit=None) ->
     def _sync_retrieve():
         _qdrant = qdrant or QdrantStore()
         _quickwit = quickwit or QuickwitStore()
+        intent = state.get("intent", "unknown")
         chunks = hybrid_search(
-            state["question"], top_k=settings.TOP_K_RETRIEVE, qdrant=_qdrant, quickwit=_quickwit
+            state["question"], top_k=settings.TOP_K_RETRIEVE, qdrant=_qdrant, quickwit=_quickwit,
+            intent=intent, source_filter=state.get("source_filter"),
         )
-        return get_reranker().rerank(state["question"], chunks, top_k=settings.TOP_K_FINAL)
+        return get_reranker().rerank(
+            state["question"], chunks, top_k=settings.TOP_K_FINAL, as_of_date=state.get("as_of_date"),
+        )
 
     reranked = ensure_content_hashes(await asyncio.to_thread(_sync_retrieve))
 
@@ -120,7 +167,7 @@ async def interact_retrieve_node(state: JuryAIState) -> dict:
 
     def _sync_retrieve():
         chunks = session_store.search(session_id, state["question"], top_k=20)
-        return get_reranker().rerank(state["question"], chunks, top_k=5)
+        return get_reranker().rerank(state["question"], chunks, top_k=5, as_of_date=state.get("as_of_date"))
 
     reranked = ensure_content_hashes(await asyncio.to_thread(_sync_retrieve))
 
@@ -166,12 +213,11 @@ async def web_search_node(state: JuryAIState) -> dict:
     })
     if state.get("on_step"):
         state["on_step"](steps[-1])
-    # Return both web_evidence (new field) and web_results (backward compat)
     return {"web_evidence": results, "web_results": results, "reasoning_steps": steps}
 
 
 # ---------------------------------------------------------------------------
-# Evidence merge node (new — streaming workflow only)
+# Evidence merge node (streaming workflow only)
 # ---------------------------------------------------------------------------
 
 async def evidence_merge_node(state: JuryAIState) -> dict:
@@ -187,11 +233,15 @@ async def evidence_merge_node(state: JuryAIState) -> dict:
     web_count = sum(1 for e in merged if e.get("domain") == "web")
 
     if state.get("mode") == "interact":
-        # Relabel domain so the frontend renders a "your document" badge
-        # instead of the global-corpus one — merge_evidence always tags
-        # legal_chunks-derived items "internal", which doesn't distinguish
-        # session_store chunks from the shared Qdrant corpus.
-        merged = [{**item, "domain": "interact"} for item in merged]
+        # merge_evidence always tags legal_chunks-derived items "internal",
+        # which doesn't distinguish session_store (never-ingested-to-S3)
+        # chunks from the shared Qdrant corpus — the frontend's document
+        # viewer 404s trying to fetch a session upload from S3. Relabel only
+        # internal items; web items keep their real "web" domain.
+        merged = [
+            {**item, "domain": "session"} if item.get("domain") == "internal" else item
+            for item in merged
+        ]
 
     steps = list(state.get("reasoning_steps") or [])
     steps.append({
@@ -207,6 +257,142 @@ async def evidence_merge_node(state: JuryAIState) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Query analysis node (v1 parity: prompt quality scoring)
+# ---------------------------------------------------------------------------
+
+_QUERY_ANALYSIS_PROMPT = """You are a legal research strategist. Analyze the user's question and provide:
+
+1. A quality score from 1-10 based on:
+   - Jurisdiction clarity (India, specific state, court level)
+   - Practice area specificity (direct tax, GST, constitutional, etc.)
+   - Fact pattern detail (order type, section, assessment year, parties)
+   - Legal issue clarity (limitation, jurisdiction, procedure, merits)
+
+2. Specific gaps identified (what's missing that would improve results) — name the
+   exact missing element where possible: the specific statute Article/Section number,
+   the nature of the claim, or the accrual/computation point in question. If a selected
+   practice area or source filter looks inconsistent with what the question is actually
+   about, call that out as a gap too. If the question cites a statute since superseded
+   by India's 2023 recodification (IPC 1860 -> Bharatiya Nyaya Sanhita 2023, CrPC 1973
+   -> Bharatiya Nagarik Suraksha Sanhita 2023, Indian Evidence Act 1872 -> Bharatiya
+   Sakshya Adhiniyam 2023), flag that as a gap and name the current equivalent section.
+   Since old and new codes can both apply depending on the offense date (1 July 2024
+   cutover), also flag missing enactment-year clarity when it would change which code
+   governs.
+
+3. A suggested rewrite that addresses the gaps
+
+4. A one-sentence improvement_reason that explains WHY the rewrite is better — reference
+   the specific legal elements it adds (article/section numbers, claim type, etc.), not a
+   generic "clarified the question" statement.
+
+Return ONLY a JSON object:
+{
+  "score": 5,
+  "gaps": ["missing jurisdiction", "no specific statute cited", "no fact pattern"],
+  "suggested_rewrite": "Improved question incorporating the missing elements",
+  "improvement_reason": "Pins Article 65 vs Article 64 and the Section 18 accrual trigger, which the original question left unspecified"
+}"""
+
+
+async def query_analysis_node(state: JuryAIState) -> dict:
+    """Analyze query quality and suggest improvements (v1 parity)."""
+    question = state["question"]
+    
+    from app.core.graph.workflow import emit_progress
+    emit_progress(state, "query_analysis")
+    
+    steps = list(state.get("reasoning_steps") or [])
+    steps.append({
+        "step": "query_analysis",
+        "detail": "Analyzing question quality and identifying gaps",
+    })
+    if state.get("on_step"):
+        state["on_step"](steps[-1])
+    
+    prompt = f"{_QUERY_ANALYSIS_PROMPT}\n\nQuestion: {question}"
+    
+    try:
+        resp = await get_llm().ainvoke([
+            SystemMessage(content="You are a legal research strategist. Return only valid JSON."),
+            HumanMessage(content=prompt)
+        ])
+        content = resp.content.strip()
+        
+        # Extract JSON from response
+        import json
+        start = content.find('{')
+        end = content.rfind('}') + 1
+        if start >= 0 and end > start:
+            analysis = json.loads(content[start:end])
+        else:
+            raise ValueError("No JSON found in response")
+        
+        # Ensure required fields
+        analysis.setdefault("score", 5)
+        analysis.setdefault("gaps", [])
+        analysis.setdefault("suggested_rewrite", question)
+        analysis.setdefault("improvement_reason", "Analysis complete")
+        
+    except Exception as e:
+        # Fallback analysis
+        analysis = {
+            "score": 5,
+            "gaps": ["Could not analyze - using default"],
+            "suggested_rewrite": question,
+            "improvement_reason": f"Analysis failed: {str(e)}"
+        }
+    
+    steps.append({
+        "step": "query_analysis_done",
+        "detail": f"Query score: {analysis['score']}/10. Gaps: {', '.join(analysis['gaps']) if analysis['gaps'] else 'none'}",
+        "score": analysis["score"],
+        "gaps": analysis["gaps"],
+        "suggested_rewrite": analysis["suggested_rewrite"],
+    })
+    if state.get("on_step"):
+        state["on_step"](steps[-1])
+    
+    return {
+        "query_analysis": analysis,
+        "reasoning_steps": steps,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Prompt improvement node (v1 parity: suggested rewrite)
+# ---------------------------------------------------------------------------
+
+async def prompt_improvement_node(state: JuryAIState) -> dict:
+    """Apply suggested rewrite if it significantly improves the query."""
+    analysis = state.get("query_analysis", {})
+    suggested = analysis.get("suggested_rewrite", "")
+    score = analysis.get("score", 5)
+    original = state["question"]
+    
+    steps = list(state.get("reasoning_steps") or [])
+    
+    # Keep original question for retrieval/answer parity with v1; store rewrite separately
+    if score < 7 and suggested and suggested != original:
+        steps.append({
+            "step": "prompt_improved",
+            "detail": f"Suggested rewrite available (score: {score}/10)",
+            "original": original,
+            "improved": suggested,
+        })
+        if state.get("on_step"):
+            state["on_step"](steps[-1])
+        return {
+            "original_question": original,
+            "improved_question": suggested,
+            "query_analysis": analysis,
+            "reasoning_steps": steps,
+        }
+    
+    return {"reasoning_steps": steps}
+
+
+# ---------------------------------------------------------------------------
 # Answer generation node
 # ---------------------------------------------------------------------------
 
@@ -214,12 +400,6 @@ async def generate_answer_node(state: JuryAIState) -> dict:
     merged = list(state.get("merged_evidence") or [])
 
     if merged:
-        # New path: merged_evidence available — group by domain. Each item is
-        # numbered by its 1-based position in the FULL merged list (the same
-        # ordering derive_citations() and _source_chunks_from_evidence() iterate),
-        # so a [N] marker in the answer maps directly to citations[N-1] and to the
-        # SourceCard at index N-1. Sections show a sparse number set (internal may
-        # be [1][3], web [2]); together they cover 1..len(merged).
         legal_ctx = "\n\n".join(
             f"[{i}] {c['source']} p.{c['page']}\n{c['text']}"
             for i, c in enumerate(merged, 1)
@@ -231,9 +411,6 @@ async def generate_answer_node(state: JuryAIState) -> dict:
             if r.get("domain") == "web"
         ) or "(none)"
     else:
-        # Old path (legacy POST endpoint): citations derive from legal_chunks
-        # alone, so only those carry citation numbers; web_results stay as
-        # unnumbered supporting context and are not citable by [N].
         legal_ctx = "\n\n".join(
             f"[{i}] {c['source']} p.{c['page']}\n{c['text']}"
             for i, c in enumerate(state.get("legal_chunks") or [], 1)
@@ -249,6 +426,8 @@ async def generate_answer_node(state: JuryAIState) -> dict:
         .replace("{history}", _format_history(state.get("history")))
         .replace("{legal_ctx}", legal_ctx)
         .replace("{web_ctx}", web_ctx)
+        .replace("{format_instructions}", answer_format_instructions(state.get("output_format", "CREAC")))
+        .replace("{as_of_clause}", as_of_clause(state.get("as_of_date")))
     )
 
     steps = list(state.get("reasoning_steps") or [])
@@ -260,12 +439,8 @@ async def generate_answer_node(state: JuryAIState) -> dict:
         state["on_step"](steps[-1])
 
     if state.get("streaming", False):
-        # Streaming mode: store prompt so the SSE generator can call astream()
         return {"answer_prompt": prompt, "reasoning_steps": steps}
 
-    # Non-streaming: run inference now and return the full answer. Citations
-    # are computed in verify_answer_node — they need the groundedness verdict,
-    # which doesn't exist until after this node runs.
     resp = await get_llm().ainvoke([HumanMessage(content=prompt)])
     meta = resp.response_metadata or {}
     return {
@@ -278,23 +453,91 @@ async def generate_answer_node(state: JuryAIState) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Devil's Advocate — standalone counterargument pass over an existing answer
+# ---------------------------------------------------------------------------
+
+_DEVILS_ADVOCATE_PROMPT = """You are opposing counsel. Given the question, the answer below, and the
+evidence it relies on, construct the strongest counterargument against that answer — the argument the
+other side would make. Use only the evidence provided; do not invent new authority. Cite evidence the
+same way the answer does, using its existing [N] numbers. If the evidence genuinely leaves no room for
+a counterargument, say so plainly instead of manufacturing one.
+
+Question: {question}
+
+Answer being challenged:
+{answer}
+
+Evidence:
+{evidence}
+
+Counterargument:"""
+
+
+async def generate_devils_advocate(question: str, answer: str, evidence: list[dict]) -> str:
+    from app.core.graph.verifier import _build_evidence_text
+    prompt = _DEVILS_ADVOCATE_PROMPT.format(
+        question=question, answer=answer, evidence=_build_evidence_text(evidence)
+    )
+    resp = await get_llm().ainvoke([HumanMessage(content=prompt)])
+    return resp.content
+
+
+# ---------------------------------------------------------------------------
 # Meta-verification node
 # ---------------------------------------------------------------------------
 
 async def verify_answer_node(state: JuryAIState) -> dict:
-    from app.core.graph.verifier import verify_answer
+    from app.core.graph.verifier import verify_answer as _verify_answer
 
     answer = state.get("answer") or ""
     merged = list(state.get("merged_evidence") or [])
     if merged:
-        # Full mixed-domain evidence — _build_evidence_text applies its own
-        # internal-preference policy when rendering the verifier prompt.
         evidence = merged
     else:
         evidence = list(state.get("legal_chunks") or [])
 
-    verification = await verify_answer(answer, evidence)
+    verification = await _verify_answer(answer, evidence)
     citations = derive_citations(verification, evidence, answer)
+
+    # Optional claim-level verification (legal-specific)
+    claim_verification = None
+    if settings.CLAIM_VERIFICATION_ENABLED and evidence:
+        try:
+            from app.core.retrieval.claim_verifier import ClaimVerifier
+            cv = ClaimVerifier()
+            av = await cv.verify_answer(answer, evidence)
+            claim_verification = {
+                "overall_verdict": av.overall_verdict.value,
+                "overall_confidence": av.overall_confidence,
+                "groundedness_score": av.groundedness_score,
+                "summary": av.summary,
+                "unsupported_claims": av.unsupported_claims,
+                "claim_verifications": [
+                    {
+                        "claim": v.claim.text,
+                        "verdict": v.verdict.value,
+                        "confidence": v.confidence,
+                        "supporting_evidence": v.supporting_evidence,
+                        "refuting_evidence": v.refuting_evidence,
+                        "explanation": v.explanation,
+                    }
+                    for v in av.claim_verifications
+                ],
+            }
+            # Merge: use claim verifier's groundedness if higher
+            if claim_verification["groundedness_score"] > verification.get("groundedness_score", 0.0):
+                verification = dict(verification)
+                verification["groundedness_score"] = claim_verification["groundedness_score"]
+                verification["verdict"] = claim_verification["overall_verdict"]
+                verification["summary"] = claim_verification["summary"]
+            # Merge unsupported claims
+            existing_unsupported = set(verification.get("unsupported_claims", []))
+            for uc in claim_verification.get("unsupported_claims", []):
+                if uc not in existing_unsupported:
+                    verification.setdefault("unsupported_claims", []).append(uc)
+            verification["claim_verification"] = claim_verification
+        except Exception:
+            pass
 
     steps = list(state.get("reasoning_steps") or [])
     steps.append({

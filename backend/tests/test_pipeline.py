@@ -106,8 +106,14 @@ def test_merge_evidence_web_penalty_applied():
 
 
 def test_merge_evidence_authoritative_web_no_penalty():
-    """Supreme court / statute / constitutional web sources skip the penalty."""
-    for src_type in ("supreme_court_judgment", "statute", "constitutional"):
+    """Supreme court / statute / constitutional / government / high court web sources skip the penalty."""
+    for src_type in (
+        "supreme_court_judgment",
+        "statute",
+        "constitutional",
+        "government_notification",
+        "high_court_judgment",
+    ):
         ev = _make_web_ev(
             url=f"https://sci.gov.in/{src_type}",
             content=f"content-{src_type}",

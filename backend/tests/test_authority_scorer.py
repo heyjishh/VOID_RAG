@@ -224,9 +224,9 @@ class TestAuthorityScorer:
             f"Weights α+β+γ+δ = {total:.6f}; expected 1.0 ± 0.001"
         )
 
-    def test_max_citations_constant_is_1000(self):
+    def test_max_citations_constant_is_10000(self):
         from app.core.retrieval.authority_scorer import MAX_CITATIONS
-        assert MAX_CITATIONS == 1000
+        assert MAX_CITATIONS == 10000
 
     def test_score_returns_float_in_unit_range(self):
         from app.core.retrieval.authority_scorer import AuthorityScorer

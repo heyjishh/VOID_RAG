@@ -185,8 +185,9 @@ async def test_verify_answer_llm_exception_returns_fallback():
 
 
 # ---------------------------------------------------------------------------
-# (d) _build_evidence_text internal-preference policy, now that callers pass
-# real mixed-domain evidence instead of pre-filtering to internal-only.
+# (d) _build_evidence_text must include ALL evidence (internal + web) — a
+# groundedness check that hides web evidence would falsely mark answers
+# "unsupported" when they're actually grounded in a web-only source.
 # ---------------------------------------------------------------------------
 
 _MIXED_EVIDENCE = [
@@ -198,10 +199,10 @@ _MIXED_EVIDENCE = [
 ]
 
 
-def test_build_evidence_text_prefers_internal_when_both_domains_present():
+def test_build_evidence_text_includes_both_domains_when_present():
     text = _build_evidence_text(_MIXED_EVIDENCE)
     assert "Section 302 IPC defines murder." in text
-    assert "The Supreme Court held that" not in text
+    assert "The Supreme Court held that" in text
 
 
 def test_build_evidence_text_falls_back_to_web_when_no_internal():
@@ -211,10 +212,10 @@ def test_build_evidence_text_falls_back_to_web_when_no_internal():
 
 
 @pytest.mark.asyncio
-async def test_verify_answer_prompt_still_prioritizes_internal_with_mixed_input():
-    """verify_answer must render only internal evidence in its prompt to the
-    LLM when mixed evidence is passed directly (the new, correct input shape),
-    even though it also received web evidence."""
+async def test_verify_answer_prompt_includes_all_domains_with_mixed_input():
+    """verify_answer must render both internal and web evidence in its prompt
+    to the LLM when mixed evidence is passed in, so groundedness can be
+    assessed against the full evidence set, not just the internal subset."""
     captured_prompt = {}
 
     async def fake_ainvoke(messages):
@@ -232,7 +233,7 @@ async def test_verify_answer_prompt_still_prioritizes_internal_with_mixed_input(
         await verify_answer("Murder requires intent.", _MIXED_EVIDENCE)
 
     assert "Section 302 IPC defines murder." in captured_prompt["text"]
-    assert "The Supreme Court held that" not in captured_prompt["text"]
+    assert "The Supreme Court held that" in captured_prompt["text"]
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,10 @@ from __future__ import annotations
 import json
 from langchain_core.messages import HumanMessage
 from app.core.llm.provider import get_llm
+from app.core.retrieval.citation_extractor import extract_citations
+from app.core.retrieval.authority_scorer import _detect_treatment
+
+_ADVERSE_TREATMENTS = {"overruled", "questioned", "distinguished"}
 
 
 _VERIFY_PROMPT = """You are an independent legal verification layer. You did NOT write \
@@ -59,20 +63,16 @@ def _verdict_from_score(score: float) -> str:
 
 
 def _build_evidence_text(evidence: list[dict]) -> str:
-    """Render evidence for a prompt. For merged evidence, prefer internal-domain items.
+    """Render evidence for a prompt. Use all evidence (internal + web).
 
-    Public reuse: the verifier gate renders the same evidence block for its
-    regeneration prompt (see ``app.core.graph.gate``).
+    The verifier must see ALL retrieved evidence to properly assess groundedness.
+    Previously it only used internal-domain items, which caused web-only or
+    mixed evidence to be ignored when any internal chunks existed.
     """
-    items = [e for e in evidence if e.get("domain") == "internal"]
-    if not items:
-        # Not merged evidence (no domain tags) — use everything.
-        items = list(evidence)
+    items = [e for e in evidence if (e.get("text") or e.get("content"))]
     parts: list[str] = []
     for e in items:
         text = e.get("text") or e.get("content") or ""
-        if not text:
-            continue
         source = e.get("source") or e.get("title") or "unknown"
         page = e.get("page")
         content_hash = e.get("content_hash") or ""
@@ -102,6 +102,29 @@ def _normalize_supported_claims(raw_claims) -> list[dict]:
         if claim:
             normalized.append({"claim": claim, "content_hash": content_hash})
     return normalized
+
+
+def _treatment_flags(evidence: list[dict]) -> dict[str, list[str]]:
+    """Map content_hash -> adverse-treatment notes for citations in that evidence block.
+
+    Reuses the same treatment detection the authority scorer feeds into
+    PageRank, so a claim grounded in an overruled/questioned/distinguished
+    case gets flagged even though it still passed groundedness scoring.
+    """
+    flags: dict[str, list[str]] = {}
+    try:
+        for e in evidence:
+            text = e.get("text") or e.get("content") or ""
+            content_hash = e.get("content_hash") or ""
+            if not text or not content_hash:
+                continue
+            for cite in extract_citations(text):
+                treatment = _detect_treatment(text, cite.raw_text)
+                if treatment in _ADVERSE_TREATMENTS:
+                    flags.setdefault(content_hash, []).append(f"{cite.raw_text} has been {treatment}")
+    except Exception:  # noqa: BLE001 — treatment flagging is best-effort, never blocks verification
+        return {}
+    return flags
 
 
 def _parse_verdict(raw: str) -> dict:
@@ -167,6 +190,22 @@ async def verify_answer(answer: str, evidence: list[dict]) -> dict:
 
     try:
         resp = await get_llm().ainvoke([HumanMessage(content=prompt)])
-        return _parse_verdict(getattr(resp, "content", "") or "")
+        result = _parse_verdict(getattr(resp, "content", "") or "")
     except Exception:  # noqa: BLE001 — robust fallback: never propagate verifier failures
         return dict(_FALLBACK)
+
+    flags = _treatment_flags(evidence)
+    if flags:
+        still_supported = []
+        for claim in result["supported_claims"]:
+            notes = flags.get(claim["content_hash"])
+            if notes:
+                result["unsupported_claims"].append(f"{claim['claim']} (relies on: {'; '.join(notes)})")
+            else:
+                still_supported.append(claim)
+        if len(still_supported) != len(result["supported_claims"]):
+            result["supported_claims"] = still_supported
+            total = len(still_supported) + len(result["unsupported_claims"])
+            result["groundedness_score"] = (len(still_supported) / total) if total else 0.0
+            result["verdict"] = _verdict_from_score(result["groundedness_score"])
+    return result

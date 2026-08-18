@@ -64,11 +64,67 @@ def _chunk_markdown(markdown: str, source: str, page: int) -> list[Chunk]:
 
 
 def _parse_pdf(data: bytes, filename: str) -> list[Chunk]:
+    """Parse PDF with pymupdf4llm, fallback to OCR if text extraction is poor."""
     doc = pymupdf.open(stream=data, filetype="pdf")
     chunks: list[Chunk] = []
+
+    # First pass: try standard markdown extraction
     for page_index, page in enumerate(pymupdf4llm.to_markdown(doc, page_chunks=True)):
-        chunks.extend(_chunk_markdown(page["text"], filename, page_index))
+        page_text = page["text"]
+        # Check if page has meaningful text
+        if len(page_text.strip()) >= 50:
+            chunks.extend(_chunk_markdown(page_text, filename, page_index))
+        else:
+            # Page appears to be scanned/image-based — try OCR
+            ocr_chunks = _parse_page_ocr(doc, filename, page_index)
+            if ocr_chunks:
+                chunks.extend(ocr_chunks)
+                logger.info("OCR used for page %d of %s", page_index + 1, filename)
+            else:
+                # Fallback to whatever text we got
+                chunks.extend(_chunk_markdown(page_text, filename, page_index))
+
     return chunks
+
+
+def _parse_page_ocr(doc: pymupdf.Document, filename: str, page_index: int) -> list[Chunk]:
+    """OCR a single page using RapidOCR (ONNX Runtime, CPU-only)."""
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+        from app.config.settings import settings
+    except ImportError:
+        logger.debug("RapidOCR not available, skipping OCR")
+        return []
+
+    if not settings.OCR_ENABLED:
+        return []
+
+    ocr = RapidOCR()
+    try:
+        # Render page to image at configured DPI
+        page = doc[page_index]
+        pix = page.get_pixmap(dpi=settings.OCR_DPI)
+        img_bytes = pix.tobytes("png")
+
+        # Run OCR
+        result, _ = ocr(img_bytes)
+        if not result:
+            return []
+
+        # Sort by reading order (top-to-bottom, left-to-right)
+        result.sort(key=lambda x: (x[0][0][1], x[0][0][0]))
+
+        # Combine into text
+        text = "\n".join([line[1] for line in result if line[1].strip()])
+
+        if len(text.strip()) < settings.OCR_MIN_CHARS_PER_PAGE:
+            return []
+
+        return _chunk_markdown(text, filename, page_index)
+
+    except Exception as exc:
+        logger.warning("OCR failed for page %d of %s: %s", page_index + 1, filename, exc)
+        return []
 
 
 def parse_bytes(data: bytes, filename: str) -> list[Chunk]:

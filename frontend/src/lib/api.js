@@ -96,13 +96,28 @@ export async function sendChat(question, conversationId = null) {
   return data
 }
 
-export async function draftDocument(brief) {
-  const { data } = await client.post('/draft', { brief })
-  // data.content: Markdown string
+export async function draftDocument(payload) {
+  const { data } = await client.post('/draft', payload)
+  // data: {content, run_id, citations, source_chunks}
   return data
 }
 
-export async function streamChat(question, conversationId, useWebSearch, callbacks) {
+export async function uploadDraftDocument(sessionId, file) {
+  const formData = new FormData()
+  formData.append('session_id', sessionId)
+  formData.append('file', file)
+  const { data } = await client.post('/interact/documents', formData)
+  // data.document: {file_hash, filename, chunk_count, duplicate}
+  return data.document
+}
+
+export async function getRecentDrafts(page = 1, pageSize = 20) {
+  const { data } = await client.get('/draft/recent', { params: { page, page_size: pageSize } })
+  // DraftRunOut[] or {items, total} — normalize both shapes
+  return Array.isArray(data) ? data : data.items || []
+}
+
+export async function streamChat(question, conversationId, useWebSearch, callbacks, outputFormat = 'CREAC', sources = null, mode = 'ask', sessionId = null) {
   const { onReasoningStep, onSourceChunk, onAnswerToken, onGate, onVerification, onDone, onError } = callbacks
 
   const response = await fetch('/api/v1/chat/stream', {
@@ -112,6 +127,12 @@ export async function streamChat(question, conversationId, useWebSearch, callbac
       question,
       conversation_id: conversationId,
       use_web_search: useWebSearch,
+      output_format: outputFormat,
+      // Filenames from listDocuments() to scope retrieval to; null/empty
+      // searches the full corpus.
+      sources: sources && sources.length ? sources : null,
+      mode,
+      session_id: sessionId,
     }),
   })
 
@@ -181,4 +202,128 @@ export async function getLegalNews() {
   const { data } = await client.get('/news/legal')
   // [{title, link, published, summary}, ...]
   return data
+}
+
+export async function getRun(runId) {
+  const { data } = await client.get(`/runs/${encodeURIComponent(runId)}`)
+  return data
+}
+
+export async function followUpRun(runId, question, useWebSearch = false) {
+  const { data } = await client.post(`/runs/${encodeURIComponent(runId)}/followup`, {
+    question,
+    use_web_search: useWebSearch,
+  })
+  return data
+}
+
+export async function sourceAction(runId, sourceIndex, action = 'view') {
+  const { data } = await client.post(`/runs/${encodeURIComponent(runId)}/sources/${encodeURIComponent(sourceIndex)}/actions`, {
+    action,
+  })
+  return data
+}
+
+export async function getRunSource(runId, sourceIndex) {
+  const { data } = await client.get(`/runs/${encodeURIComponent(runId)}/source/${encodeURIComponent(sourceIndex)}`)
+  return data
+}
+
+export async function getRunSourceFile(runId, sourceIndex) {
+  const { data } = await client.get(`/runs/${encodeURIComponent(runId)}/source/${encodeURIComponent(sourceIndex)}/file`, { responseType: 'text' })
+  return { content: data }
+}
+
+export async function downloadRunPdf(runId) {
+  const { data } = await client.post(`/runs/${encodeURIComponent(runId)}/download`, {}, { responseType: 'blob' })
+  return data
+}
+
+export async function analyzeQuestion(question) {
+  const { data } = await client.post('/chat/analyze', { question })
+  return data
+}
+
+export async function improveQuestion(question) {
+  const { data } = await client.post('/chat/improve', { question })
+  return data
+}
+
+export async function listConversations(userId) {
+  const { data } = await client.get('/conversations', { params: { user_id: userId } })
+  return data
+}
+
+export async function createConversation(payload) {
+  const { data } = await client.post('/conversations', payload)
+  return data
+}
+
+export async function updateConversation(conversationId, payload) {
+  const { data } = await client.patch(`/conversations/${encodeURIComponent(conversationId)}`, payload)
+  return data
+}
+
+export async function deleteConversation(conversationId) {
+  const { data } = await client.delete(`/conversations/${encodeURIComponent(conversationId)}`)
+  return data
+}
+
+export async function listDocuments(prefix = '', limit = 100, offset = 0) {
+  const { data } = await client.get('/documents', { params: { prefix, limit, offset } })
+  return data
+}
+
+export async function listDocumentFolders() {
+  const { data } = await client.get('/documents/folders')
+  // {folders: [{bucket, folder, prefix, count}]}
+  return data
+}
+
+export async function getLlmStatus() {
+  const { data } = await client.get('/llm/status')
+  // {provider, model, base_url, configured}
+  return data
+}
+
+export async function scheduleIngest() {
+  const { data } = await client.post('/ingest/s3/schedule')
+  return data
+}
+
+export async function unscheduleIngest() {
+  const { data } = await client.post('/ingest/s3/unschedule')
+  return data
+}
+
+export async function getSchedulerStatus() {
+  const { data } = await client.get('/ingest/s3/status')
+  return data
+}
+
+export const interactApi = {
+  async uploadDocument(sessionId, file) {
+    const formData = new FormData()
+    formData.append('session_id', sessionId)
+    formData.append('file', file)
+    const { data } = await client.post('/interact/documents', formData)
+    // data.document: {file_hash, filename, chunk_count, duplicate}
+    return data
+  },
+  async listDocuments(sessionId) {
+    const { data } = await client.get('/interact/documents', { params: { session_id: sessionId } })
+    // data.documents: [...]
+    return data
+  },
+  async deleteDocument(sessionId, fileHash) {
+    await client.delete(`/interact/documents/${fileHash}`, { params: { session_id: sessionId } })
+  },
+  async reuseDocument(sessionId, sourceSessionId, fileHash) {
+    const { data } = await client.post('/interact/documents/reuse', {
+      session_id: sessionId,
+      source_session_id: sourceSessionId,
+      file_hash: fileHash,
+    })
+    return data
+  },
 }

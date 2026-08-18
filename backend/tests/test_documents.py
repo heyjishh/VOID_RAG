@@ -44,6 +44,56 @@ def _fake_loader(entries: list[dict], downloads: dict[str, bytes]) -> MagicMock:
 
 
 @pytest.mark.asyncio
+async def test_list_documents_total_reflects_full_corpus_not_just_the_page():
+    """total must count the whole (filtered) corpus, not the sliced page —
+    otherwise a paginating caller (the composer's source picker) can never
+    tell a second page exists, and silently truncates to the first `limit`
+    documents."""
+    app = create_app()
+    entries = [
+        {"key": f"Acts/Act {i:03d}.pdf", "size": 1, "etag": f"e{i}", "bucket": "bucket-a"}
+        for i in range(5)
+    ]
+    loader = _fake_loader(entries=entries, downloads={})
+
+    with patch("app.api.v1.documents.MultiS3Loader", return_value=loader):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            r = await c.get("/api/v1/documents", params={"limit": 2, "offset": 0})
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 5  # full corpus, not len(this page) == 2
+    assert len(data["documents"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_document_folders_groups_by_bucket_and_prefix():
+    """Folders must come straight from each object's key path, not a
+    hardcoded taxonomy — nested prefixes and multiple buckets both need to
+    show up as distinct groups with an accurate per-folder count."""
+    app = create_app()
+    entries = [
+        {"key": "Acts/A.pdf", "size": 1, "etag": "e1", "bucket": "bucket-a"},
+        {"key": "Acts/B.pdf", "size": 1, "etag": "e2", "bucket": "bucket-a"},
+        {"key": "Notifications/2024/C.pdf", "size": 1, "etag": "e3", "bucket": "bucket-a"},
+        {"key": "Acts/D.pdf", "size": 1, "etag": "e4", "bucket": "bucket-b"},
+    ]
+    loader = _fake_loader(entries=entries, downloads={})
+
+    with patch("app.api.v1.documents.MultiS3Loader", return_value=loader):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            r = await c.get("/api/v1/documents/folders")
+
+    assert r.status_code == 200
+    folders = {(f["bucket"], f["folder"]): f["count"] for f in r.json()["folders"]}
+    assert folders == {
+        ("bucket-a", "Acts"): 2,
+        ("bucket-a", "Notifications/2024"): 1,
+        ("bucket-b", "Acts"): 1,
+    }
+
+
+@pytest.mark.asyncio
 async def test_view_document_resolves_basename_and_returns_pdf_bytes():
     app = create_app()
     basename = "ADVOCATES' WELFARE FUND ACT, 2001.pdf"

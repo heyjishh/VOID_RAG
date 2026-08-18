@@ -475,6 +475,19 @@ export default function LegalFlick({ variant = 'full', className, style, onPromp
       idxRef.current = target
       const fwd = target > cur
       const step = fwd ? 0.16 : 0.1
+
+      // Self-heal every leaf NOT part of this transition to its correct
+      // rest state, instantly. A prior flip's GSAP tween can fail to reach
+      // onComplete (a backgrounded tab throttles requestAnimationFrame, or
+      // two auto-turn ticks land close together) — without this, a leaf
+      // stuck mid-flip keeps showing stale content forever while the pager
+      // silently keeps moving on.
+      for (let k = 0; k < total; k++) {
+        if (fwd ? (k >= cur && k < target) : (k >= target && k < cur)) continue
+        if (k < target) collapseLeaf(k)
+        else restoreLeaf(k)
+      }
+
       if (fwd) {
         for (let k = cur; k < target; k++) {
           if (instant) collapseLeaf(k)
@@ -493,7 +506,16 @@ export default function LegalFlick({ variant = 'full', className, style, onPromp
       }
     }
 
-    const next = () => goTo(idxRef.current + 1 === total ? 0 : idxRef.current + 1)
+    // Ping-pong the auto-turn: forward (left-to-right) to the last spread,
+    // then backward (right-to-left) to the first, repeat — rather than
+    // always advancing and snapping back on wrap.
+    let dir = 1
+    const next = () => {
+      const cur = idxRef.current
+      if (dir === 1 && cur >= total - 1) dir = -1
+      else if (dir === -1 && cur <= 0) dir = 1
+      goTo(cur + dir)
+    }
 
     /* ---- auto-turn, paused while you look at it; stopped once you engage ---- */
     let timer = null
@@ -563,7 +585,22 @@ export default function LegalFlick({ variant = 'full', className, style, onPromp
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div ref={hostRef} className={className} style={{ position: 'relative', overflow: 'hidden', ...style }}>
+    <div
+      ref={hostRef}
+      className={className}
+      style={{
+        // The caller sizes this host — 'absolute inset-0' to fill a
+        // positioned parent, or a fixed height for the compact variant.
+        // Hardcoding position here would always beat that className
+        // (inline styles outrank classes), collapsing 'absolute inset-0'
+        // back to 'relative' and, with no in-flow content (the scene is
+        // itself absolutely positioned), the host to zero height —
+        // clipped invisible by overflow:hidden below.
+        position: className?.includes('absolute') ? undefined : 'relative',
+        overflow: 'hidden',
+        ...style,
+      }}
+    >
       <div
         ref={sceneRef}
         style={{ position: 'absolute', left: '50%', top: '50%', width: BASE_W, height: BASE_H, transformOrigin: 'center center', willChange: 'transform' }}

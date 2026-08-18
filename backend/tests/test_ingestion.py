@@ -1,9 +1,11 @@
 import io
 import fitz
+import pytest
 from unittest.mock import MagicMock, patch
 from app.config.settings import settings
 from app.core.ingestion.s3_loader import S3Loader
 from app.core.ingestion.parser import parse_bytes
+from app.core.ingestion.pipeline import _AdaptiveLimiter, _CpuGovernor
 
 
 _HEADING_FONT = 24
@@ -112,6 +114,91 @@ def test_parse_pdf_structure_metadata_correct():
     assert chunks, "expected at least one chunk from a structured PDF"
     assert all(c["source"] == "contracts.pdf" for c in chunks)
     assert all(c["page"] == 0 for c in chunks)
+
+
+@pytest.mark.asyncio
+async def test_adaptive_limiter_grows_on_success():
+    limiter = _AdaptiveLimiter(initial=2, minimum=2, maximum=8)
+    await limiter.acquire()
+    await limiter.release(ok=True)
+    assert limiter.limit == 3
+    await limiter.acquire()
+    await limiter.release(ok=True)
+    assert limiter.limit == 4
+
+
+@pytest.mark.asyncio
+async def test_adaptive_limiter_halves_on_failure_and_floors_at_minimum():
+    limiter = _AdaptiveLimiter(initial=8, minimum=2, maximum=24)
+    await limiter.acquire()
+    await limiter.release(ok=False)
+    assert limiter.limit == 4
+    await limiter.acquire()
+    await limiter.release(ok=False)
+    assert limiter.limit == 2  # floored at minimum, not 1
+    await limiter.acquire()
+    await limiter.release(ok=False)
+    assert limiter.limit == 2
+
+
+@pytest.mark.asyncio
+async def test_adaptive_limiter_caps_at_maximum():
+    limiter = _AdaptiveLimiter(initial=8, minimum=2, maximum=8)
+    await limiter.acquire()
+    await limiter.release(ok=True)
+    assert limiter.limit == 8  # already at ceiling, success doesn't overshoot
+
+
+def test_cpu_governor_degrades_above_budget_and_floors_at_minimum():
+    gov = _CpuGovernor(budget_percent=50.0, min_ceiling=2, max_ceiling=8, sample_interval=2.0)
+    gov.ceiling = 8
+    gov._step(90.0)
+    assert gov.ceiling == 7
+    for _ in range(10):
+        gov._step(90.0)
+    assert gov.ceiling == 2  # never drops below minimum — pipeline stays alive
+
+
+def test_cpu_governor_recovers_when_load_drops():
+    gov = _CpuGovernor(budget_percent=50.0, min_ceiling=2, max_ceiling=8, sample_interval=2.0)
+    gov.ceiling = 2
+    gov._step(10.0)
+    assert gov.ceiling == 3
+
+
+@pytest.mark.asyncio
+async def test_limiter_is_clamped_by_governor_ceiling():
+    gov = _CpuGovernor(budget_percent=50.0, min_ceiling=2, max_ceiling=8, sample_interval=2.0)
+    gov.ceiling = 3
+    limiter = _AdaptiveLimiter(initial=8, minimum=2, maximum=8, governor=gov)
+    # AIMD's internal limit is 8, but the governor's CPU-budget ceiling (3) wins.
+    assert limiter.limit == 3
+
+
+@pytest.mark.asyncio
+async def test_list_pdf_keys_times_out_without_hanging(monkeypatch):
+    """A listing call that never returns (a stuck botocore call — DNS, a
+    dead connection, a retry loop) must not hang the caller forever. This
+    replaced a forked-subprocess design that, in practice, deadlocked on
+    every call when forked from a live multi-threaded async server (a lock
+    held by another thread at fork time is inherited "locked forever" in
+    the child). asyncio.wait_for over a plain to_thread call has no such
+    fork risk and still bounds the wait."""
+    import threading
+    from app.core.ingestion import pipeline
+
+    release = threading.Event()
+
+    def _hangs_forever(prefix_filter):
+        release.wait()  # never set within the test — simulates a stuck call
+        return []
+
+    monkeypatch.setattr(pipeline, "_list_pdf_keys", _hangs_forever)
+
+    with pytest.raises(TimeoutError):
+        await pipeline._list_pdf_keys_with_timeout("", timeout=0.05)
+
+    release.set()  # let the orphaned thread-pool worker finish so it doesn't leak
 
 
 def test_parse_pdf_page_metadata_increments_across_pages():

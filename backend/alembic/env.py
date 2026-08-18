@@ -12,6 +12,7 @@ from app.core.db import Base
 
 # Import all models so they register on Base.metadata for autogenerate.
 from app.models import audit_log  # noqa: F401
+from app.models import draft  # noqa: F401
 
 config = context.config
 

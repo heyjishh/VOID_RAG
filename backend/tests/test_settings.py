@@ -8,4 +8,4 @@ def test_llm_provider_chain_has_at_least_one():
 
 def test_web_search_provider_returns_string():
     p = settings.web_search_provider
-    assert p in ("tavily", "brave", "duckduckgo")
+    assert p in ("wigolo", "tavily", "brave", "duckduckgo")
