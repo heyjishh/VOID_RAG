@@ -2,7 +2,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
 from app.config.settings import settings
@@ -54,6 +54,70 @@ def _read_cache_file(path: Path) -> bytes:
 def _write_cache_file(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
+
+
+@router.get("/documents/folders")
+async def list_document_folders():
+    """Distinct folder prefixes across the corpus, derived straight from
+    each object's S3 key path — not a hardcoded taxonomy. However the
+    bucket is actually organized (flat today, nested tomorrow, multiple
+    buckets) shows up here automatically, no code change needed."""
+    loader = MultiS3Loader(settings.bucket_list)
+    entries = await asyncio.to_thread(loader.list_keys_with_meta)
+
+    counts: dict[tuple[str, str], int] = {}
+    for e in entries:
+        parts = e["key"].split("/")
+        folder = "/".join(parts[:-1])  # "" for objects sitting at the bucket root
+        bucket = e.get("bucket", "")
+        counts[(bucket, folder)] = counts.get((bucket, folder), 0) + 1
+
+    return {
+        "folders": [
+            {
+                "bucket": bucket,
+                "folder": folder,
+                "prefix": f"{folder}/" if folder else "",
+                "count": count,
+            }
+            for (bucket, folder), count in sorted(counts.items())
+        ]
+    }
+
+
+@router.get("/documents")
+async def list_documents(
+    prefix: str = Query("", description="Filter by key prefix"),
+    limit: int = Query(100, le=500),
+    offset: int = Query(0, ge=0),
+):
+    loader = MultiS3Loader(settings.bucket_list)
+    entries = await asyncio.to_thread(loader.list_keys_with_meta)
+
+    if prefix:
+        entries = [e for e in entries if e["key"].startswith(prefix)]
+
+    entries = sorted(entries, key=lambda e: e["key"])
+    # Total across the full (filtered) corpus, not just this page — callers
+    # paginating (e.g. the composer's source picker) need this to know
+    # whether a second page exists at all.
+    total = len(entries)
+    page = entries[offset:offset + limit]
+
+    return {
+        "total": total,
+        "documents": [
+            {
+                "key": e["key"],
+                "filename": e["key"].split("/")[-1],
+                "size": e.get("size", 0),
+                "etag": e.get("etag", ""),
+                "bucket": e.get("bucket", ""),
+                "media_type": _media_type(e["key"].split("/")[-1]),
+            }
+            for e in page
+        ],
+    }
 
 
 @router.get("/documents/view")

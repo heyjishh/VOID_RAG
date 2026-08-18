@@ -3,23 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>JuryAI — Legal Research at the Speed of Thought</title>
-<meta name="description" content="JuryAI is an intelligent legal research assistant: semantic + full-text search across millions of judgments, statutes and gazettes, with every answer traced to a cited source.">
+<title>Juris AI | Legal Research at the Speed of Thought</title>
+<meta name="description" content="Juris AI is an intelligent legal research assistant: semantic + full-text search across millions of judgments, statutes and gazettes, with every answer traced to a cited source.">
 <meta name="keywords" content="legal research, ai legal assistant, judgment search, case law, statutes, cited answers, rag, indian law, bail under crpc">
-<meta name="author" content="JuryAI">
+<meta name="author" content="Juris AI">
 <meta name="robots" content="index, follow">
-<meta name="theme-color" content="#0e0c09">
+<meta name="theme-color" content="#F8FAFC">
 <link rel="canonical" href="https://juryai.legal/">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="JuryAI">
-<meta property="og:title" content="JuryAI — Legal Research at the Speed of Thought">
+<meta property="og:site_name" content="Juris AI">
+<meta property="og:title" content="Juris AI | Legal Research at the Speed of Thought">
 <meta property="og:description" content="Intelligent legal research: millions of judgments and statutes, one query. Answers with sources, matter workspaces, and judgment drafting.">
 <meta property="og:url" content="https://juryai.legal/">
 <meta property="og:image" content="https://picsum.photos/seed/juryai/1200/630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="JuryAI — Legal Research at the Speed of Thought">
+<meta name="twitter:title" content="Juris AI | Legal Research at the Speed of Thought">
 <meta name="twitter:description" content="Millions of judgments and statutes, one query. Every answer traced to a cited source. Matter workspaces and drafting.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23c1121f'/%3E%3Cpath d='M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12' stroke='%23ece2cf' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230EA5E9'/%3E%3Cpath d='M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12' stroke='%23F1F5F9' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Organization","name":"JuryAI","url":"https://juryai.legal/","logo":"https://picsum.photos/seed/juryai/1200/630","sameAs":["https://x.com/juryai","https://t.me/juryai","https://www.linkedin.com/company/juryai","https://github.com/juryai"]}
 </script>
@@ -31,29 +31,29 @@
 <style>
 /* ─── CASE FILE DOCKET — 3 core colours: ink · bone · blood ─── */
 :root{
-  --ink:#0e0c09;          /* page / night chamber */
-  --panel:#161310;        /* raised paper */
-  --panel-2:#1d1914;
-  --bone:#ece2cf;         /* ink on paper */
-  --bone-dim:#a99f8a;
-  --blood:#c1121f;        /* the red thread */
-  --line:rgba(236,226,207,0.24);
-  --line-strong:rgba(236,226,207,0.55);
-  --shadow:0 18px 50px rgba(0,0,0,0.5);
+  --ink:#F8FAFC;
+  --panel:#FFFFFF;
+  --panel-2:#F1F5F9;
+  --bone:#0F172A;
+  --bone-dim:#64748B;
+  --blood:#0EA5E9;
+  --line:rgba(15,23,42,0.08);
+  --line-strong:rgba(15,23,42,0.15);
+  --shadow:0 8px 30px rgba(14,165,233,0.08);
+  --radius:12px;
   --display:'Fraunces',serif;
   --mono:'Space Mono',monospace;
 }
-/* LIGHTS-ON surprise: the whole docket inverts to aged parchment */
 html[data-light]{
-  --ink:#e8dcc3;
-  --panel:#f2e9d6;
-  --panel-2:#f7f0e0;
-  --bone:#16130d;
-  --bone-dim:#6b6152;
-  --blood:#a80f1a;
-  --line:rgba(22,19,13,0.3);
-  --line-strong:rgba(22,19,13,0.6);
-  --shadow:0 18px 50px rgba(90,60,20,0.18);
+  --ink:#0B1120;
+  --panel:#111827;
+  --panel-2:#1E293B;
+  --bone:#F1F5F9;
+  --bone-dim:#94A3B8;
+  --blood:#38BDF8;
+  --line:rgba(241,245,249,0.12);
+  --line-strong:rgba(241,245,249,0.25);
+  --shadow:0 8px 30px rgba(0,0,0,0.3);
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -69,44 +69,31 @@ body{background:var(--ink);color:var(--bone);font-family:var(--mono);-webkit-fon
 .display{font-family:var(--display)}
 a{text-decoration:none;color:inherit}
 
-/* film grain — evidence texture over everything */
-.grain{position:fixed;inset:0;z-index:200;pointer-events:none;opacity:.06;mix-blend-mode:overlay;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
-}
-
-/* custom cursor — blood ring + bone dot */
-@media (pointer:fine){
-  body,body a,body button{cursor:none}
-}
-.cursor-dot,.cursor-ring{position:fixed;top:0;left:0;z-index:300;pointer-events:none;border-radius:50%}
-.cursor-dot{width:6px;height:6px;background:var(--bone);transform:translate(-50%,-50%)}
-.cursor-ring{width:36px;height:36px;border:1.5px solid var(--blood);transform:translate(-50%,-50%);opacity:.9}
-@media (pointer:coarse){.cursor-dot,.cursor-ring{display:none}}
+.grain{display:none}
+.cursor-dot,.cursor-ring{display:none}
 
 /* eyebrow: docket reference line */
 .eyebrow{display:flex;align-items:center;gap:.7rem;font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:var(--bone-dim)}
 .eyebrow i{font-style:normal;color:var(--blood);font-weight:700}
 
-/* brutal stamp — "FILED / CITED / VERIFIED" */
-.stamp{display:inline-block;font-family:var(--mono);font-size:.62rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--blood);border:1.5px solid var(--blood);padding:.3rem .6rem;transform:rotate(-6deg);background:transparent;white-space:nowrap}
+.stamp{display:inline-block;font-family:var(--mono);font-size:.62rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--blood);border:1.5px solid var(--blood);padding:.3rem .6rem;border-radius:6px;background:rgba(14,165,233,0.06);white-space:nowrap}
 .stamp-soft{color:var(--bone-dim);border-color:var(--bone-dim)}
 
-/* brutal buttons — hard edge, skewed, no radius */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:.55rem;font-family:var(--mono);font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;border:2px solid var(--bone);color:var(--bone);padding:.9rem 1.6rem;transform:skewX(-6deg);transition:background-color .15s,color .15s,border-color .15s;background:transparent}
-.btn>*{transform:skewX(6deg)}
-.btn:hover{background:var(--bone);color:var(--ink);border-color:var(--bone)}
-.btn-red{background:var(--blood);border-color:var(--blood);color:var(--bone)}
-.btn-red:hover{background:var(--bone);border-color:var(--bone);color:var(--blood)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.55rem;font-family:var(--mono);font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:1.5px solid var(--bone);color:var(--bone);padding:.75rem 1.5rem;border-radius:var(--radius);transition:all .25s cubic-bezier(.23,1,.32,1);background:transparent}
+.btn>*{transform:none}
+.btn:hover{background:var(--bone);color:var(--ink);border-color:var(--bone);transform:translateY(-1px);box-shadow:var(--shadow)}
+.btn:active{transform:translateY(0) scale(0.98)}
+.btn-red{background:var(--blood);border-color:var(--blood);color:#fff}
+.btn-red:hover{background:#0284C7;border-color:#0284C7;color:#fff;transform:translateY(-1px);box-shadow:0 8px 24px rgba(14,165,233,0.25)}
+.btn-red:active{transform:translateY(0) scale(0.98)}
 
-/* brutal card — no radius, no shadow, hard tape patch */
-.card-brut{position:relative;background:var(--panel);border:2px solid var(--line-strong);padding:1.6rem;transition:border-color .15s,transform .15s}
-.card-brut:hover{border-color:var(--blood)}
-.c-tape{position:absolute;top:-11px;left:50%;transform:translateX(-50%) rotate(-1deg);background:var(--blood);color:var(--bone);font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.2em;padding:.18rem .6rem;text-transform:uppercase;white-space:nowrap}
+.card-brut{position:relative;background:var(--panel);border:1px solid var(--line-strong);padding:1.6rem;border-radius:var(--radius);transition:all .3s cubic-bezier(.23,1,.32,1);box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.card-brut:hover{border-color:var(--blood);transform:translateY(-4px);box-shadow:var(--shadow)}
+.c-tape{position:absolute;top:-11px;left:24px;background:var(--blood);color:#fff;font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.16em;padding:.25rem .7rem;text-transform:uppercase;white-space:nowrap;border-radius:6px}
 
-/* evidence pin — blood head, steel needle */
-.pin{position:absolute;width:22px;height:22px;transform:translate(-50%,-50%) rotate(-45deg);z-index:5}
-.pin::before{content:"";position:absolute;inset:0;border-radius:50% 50% 50% 0;background:var(--blood);box-shadow:0 2px 6px rgba(0,0,0,.5)}
-.pin::after{content:"";position:absolute;bottom:-16px;left:10px;width:2px;height:18px;background:linear-gradient(to bottom,#b8b2a2,rgba(184,178,162,0));}
+.pin{position:absolute;width:16px;height:16px;transform:translate(-50%,-50%);z-index:5}
+.pin::before{content:"";position:absolute;inset:0;border-radius:50%;background:var(--blood);box-shadow:0 2px 8px rgba(14,165,233,0.3)}
+.pin::after{display:none}
 
 /* the red thread — connecting evidence */
 .threads{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
@@ -120,18 +107,17 @@ a{text-decoration:none;color:inherit}
 .book::after{content:"";position:absolute;top:-2px;left:50%;width:26px;height:6px;transform:translateX(-50%);background:var(--blood)}
 
 /* pipeline rows */
-.row-pipe{display:grid;grid-template-columns:110px 1fr auto;gap:1.5rem;align-items:stretch;border-top:2px solid var(--line-strong);transition:background-color .15s}
-.row-pipe:last-child{border-bottom:2px solid var(--line-strong)}
-.row-pipe:hover{background:var(--blood)}
-.row-pipe:hover .rp-num,.row-pipe:hover .rp-title,.row-pipe:hover .rp-desc,.row-pipe:hover .rp-tag{color:var(--bone)!important}
-.rp-num{font-family:var(--display);font-size:clamp(2.6rem,5vw,4rem);font-weight:900;line-height:1;text-align:center;align-self:center;color:var(--blood)}
+.row-pipe{display:grid;grid-template-columns:80px 1fr auto;gap:1.5rem;align-items:stretch;border-top:1px solid var(--line-strong);transition:all .25s cubic-bezier(.23,1,.32,1);border-radius:var(--radius)}
+.row-pipe:last-child{border-bottom:1px solid var(--line-strong)}
+.row-pipe:hover{background:var(--blood);transform:translateX(4px)}
+.row-pipe:hover .rp-num,.row-pipe:hover .rp-title,.row-pipe:hover .rp-desc,.row-pipe:hover .rp-tag{color:#fff!important}
+.rp-num{font-family:var(--display);font-size:clamp(2rem,4vw,3rem);font-weight:900;line-height:1;text-align:center;align-self:center;color:var(--blood)}
 
-/* marquee — docket tape */
-.docket-tape{overflow:hidden;border-block:2px solid var(--line-strong);background:var(--panel)}
+.docket-tape{overflow:hidden;border-block:1px solid var(--line-strong);background:var(--panel-2)}
 .docket-track{display:flex;width:max-content;animation:tape 32s linear infinite}
 .docket-track:hover{animation-play-state:paused}
 @keyframes tape{to{transform:translateX(-50%)}}
-.docket-item{display:flex;align-items:center;gap:1.2rem;padding:1rem 1.6rem;font-family:var(--mono);font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;color:var(--bone-dim);border-right:1px dashed var(--line)}
+.docket-item{display:flex;align-items:center;gap:1rem;padding:.8rem 1.4rem;font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;color:var(--bone-dim);border-right:1px solid var(--line)}
 .docket-item b{color:var(--blood);font-weight:700}
 
 /* headline reveal */
@@ -159,7 +145,7 @@ html[data-light] .mask-word{transition-delay:.1s}
 /* judge stage */
 #judge-wrap{position:relative}
 #judge-canvas{width:100%;height:100%;display:block}
-#judge-glow{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);width:70%;height:90px;border-radius:50%;background:radial-gradient(closest-side,rgba(193,18,31,.35),transparent 70%);filter:blur(6px);pointer-events:none}
+#judge-glow{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);width:70%;height:90px;border-radius:50%;background:radial-gradient(closest-side,rgba(14,165,233,.35),transparent 70%);filter:blur(6px);pointer-events:none}
 #judge-fallback{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;color:var(--bone-dim);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase}
 
 /* corner authorship label */
@@ -186,34 +172,38 @@ html[data-light] .mask-word{transition-delay:.1s}
 <div class="cursor-ring" id="cursor-ring" aria-hidden="true"></div>
 
 <!-- ═══════════════ NAV — THE DOCKET INDEX ═══════════════ -->
-<nav id="navbar" class="fixed top-0 left-0 right-0 z-[100] border-b-2 border-[var(--line-strong)] bg-[var(--ink)]/92 backdrop-blur-md">
-  <div class="container flex items-center justify-between h-16 md:h-[72px]">
-    <a href="#top" class="flex items-center gap-2.5" aria-label="JuryAI home">
-      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="var(--blood)"/><path d="M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12" stroke="var(--bone)" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="display font-black text-xl tracking-tight">Jury<span class="text-[var(--blood)] italic">AI</span></span>
+<nav id="navbar" class="fixed top-0 left-0 right-0 z-[100] border-b border-[var(--line)] bg-[var(--ink)]/95 backdrop-blur-xl">
+  <div class="container flex items-center justify-between h-16 md:h-[68px]">
+    <a href="#top" class="flex items-center gap-2.5" aria-label="Juris AI home">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--blood)"/><path d="M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="display font-black text-xl tracking-tight">Juris<span class="text-[var(--blood)] italic"> AI</span></span>
     </a>
-    <div class="hidden md:flex items-center gap-8 mono text-[12px] font-bold tracking-[.18em] uppercase">
-      <a href="#board" class="hover:text-[var(--blood)] transition-colors"><span class="text-[var(--blood)]">01.</span> Board</a>
-      <a href="#library" class="hover:text-[var(--blood)] transition-colors"><span class="text-[var(--blood)]">02.</span> Library</a>
-      <a href="#pipeline" class="hover:text-[var(--blood)] transition-colors"><span class="text-[var(--blood)]">03.</span> Pipeline</a>
-      <a href="#rates" class="hover:text-[var(--blood)] transition-colors"><span class="text-[var(--blood)]">04.</span> Rates</a>
+    <div class="hidden md:flex items-center gap-7 mono text-[11.5px] font-bold tracking-[.14em] uppercase">
+      <a href="#board" class="hover:text-[var(--blood)] transition-colors">Board</a>
+      <a href="#library" class="hover:text-[var(--blood)] transition-colors">Library</a>
+      <a href="#pipeline" class="hover:text-[var(--blood)] transition-colors">Pipeline</a>
+      <a href="#rates" class="hover:text-[var(--blood)] transition-colors">Rates</a>
     </div>
     <div class="hidden md:flex items-center gap-3">
-      <button id="light-toggle" class="mono text-[11px] font-bold tracking-[.18em] uppercase border-2 border-[var(--line-strong)] px-3 py-2 hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="Toggle lights">Lights: <span id="light-state">off</span></button>
+      <button id="light-toggle" class="mono text-[11px] font-bold tracking-[.14em] uppercase border border-[var(--line-strong)] rounded-lg px-3 py-2 hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="Toggle theme">
+        <span id="light-state">Light</span>
+      </button>
       <a href="http://localhost:5174" data-app-cta class="btn !py-2 !px-4 !text-[11px]">Launch app</a>
       <a href="#file" data-app-cta class="btn btn-red !py-2 !px-4 !text-[11px]">Get started</a>
     </div>
-    <button id="menu-btn" class="md:hidden p-2 -mr-2 border-2 border-[var(--line-strong)]" aria-label="Open menu" aria-expanded="false">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--blood)" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    <button id="menu-btn" class="md:hidden p-2 -mr-2 border border-[var(--line-strong)] rounded-lg" aria-label="Open menu" aria-expanded="false">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--blood)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
   </div>
-  <div id="mobile-menu" class="hidden md:hidden flex-col gap-1 px-5 pb-6 pt-2 bg-[var(--ink)] border-t-2 border-[var(--line)]">
-    <a href="#board" class="py-3 px-3 mono text-xs font-bold tracking-[.18em] uppercase hover:text-[var(--blood)]">01. Board</a>
-    <a href="#library" class="py-3 px-3 mono text-xs font-bold tracking-[.18em] uppercase hover:text-[var(--blood)]">02. Library</a>
-    <a href="#pipeline" class="py-3 px-3 mono text-xs font-bold tracking-[.18em] uppercase hover:text-[var(--blood)]">03. Pipeline</a>
-    <a href="#rates" class="py-3 px-3 mono text-xs font-bold tracking-[.18em] uppercase hover:text-[var(--blood)]">04. Rates</a>
+  <div id="mobile-menu" class="hidden md:hidden flex-col gap-1 px-5 pb-6 pt-2 bg-[var(--ink)] border-t border-[var(--line)]">
+    <a href="#board" class="py-3 px-3 mono text-xs font-bold tracking-[.14em] uppercase hover:text-[var(--blood)] rounded-lg hover:bg-[var(--panel-2)] transition-colors">Board</a>
+    <a href="#library" class="py-3 px-3 mono text-xs font-bold tracking-[.14em] uppercase hover:text-[var(--blood)] rounded-lg hover:bg-[var(--panel-2)] transition-colors">Library</a>
+    <a href="#pipeline" class="py-3 px-3 mono text-xs font-bold tracking-[.14em] uppercase hover:text-[var(--blood)] rounded-lg hover:bg-[var(--panel-2)] transition-colors">Pipeline</a>
+    <a href="#rates" class="py-3 px-3 mono text-xs font-bold tracking-[.14em] uppercase hover:text-[var(--blood)] rounded-lg hover:bg-[var(--panel-2)] transition-colors">Rates</a>
     <div class="flex gap-3 mt-3">
-      <button id="light-toggle-m" class="flex-1 mono text-[11px] font-bold tracking-[.18em] uppercase border-2 border-[var(--line-strong)] py-2.5">Lights: <span id="light-state-m">off</span></button>
+      <button id="light-toggle-m" class="flex-1 mono text-[11px] font-bold tracking-[.14em] uppercase border border-[var(--line-strong)] rounded-lg py-2.5">
+        <span id="light-state-m">Light</span>
+      </button>
       <a href="#file" data-app-cta class="btn btn-red flex-1 !py-2.5 !text-[11px]">Get started</a>
     </div>
   </div>
@@ -224,7 +214,7 @@ html[data-light] .mask-word{transition-delay:.1s}
   <div class="container grid lg:grid-cols-[1.05fr_.95fr] gap-10 items-center relative">
     <div class="relative pt-10">
       <span class="stamp absolute -left-2 top-0 md:-left-6">Case file № 001</span>
-      <p class="eyebrow" data-hero="1"><i>Exhibit</i> — millions of authorities, one query</p>
+      <p class="eyebrow" data-hero="1"><i>Exhibit</i> millions of authorities, one query</p>
 
       <h1 id="hero-headline" data-split class="display font-black leading-[.92] tracking-tight mt-7 text-[clamp(3rem,8.5vw,6.6rem)]">
         <span class="block">Every answer,</span>
@@ -232,7 +222,7 @@ html[data-light] .mask-word{transition-delay:.1s}
       </h1>
 
       <p id="hero-sub" class="mt-7 max-w-md text-[13.5px] leading-relaxed text-[var(--bone-dim)]" data-hero="2">
-        JuryAI reads judgments, statutes and gazettes the way a reading counsel does —
+        Juris AI reads judgments, statutes and gazettes the way a reading counsel does,
         then answers with every proposition <span class="text-[var(--blood)] font-bold">pinned to a cited source</span>.
         No assertions. Only evidence.
       </p>
@@ -247,7 +237,7 @@ html[data-light] .mask-word{transition-delay:.1s}
         </a>
       </div>
 
-      <dl id="hero-stats" class="mt-12 grid grid-cols-2 sm:grid-cols-4 border-2 border-[var(--line-strong)] divide-x-2 divide-[var(--line-strong)]" data-hero="4">
+      <dl id="hero-stats" class="mt-12 grid grid-cols-2 sm:grid-cols-4 border border-[var(--line-strong)] divide-x divide-[var(--line-strong)] rounded-xl overflow-hidden bg-[var(--panel)]" data-hero="4">
         <div class="p-4"><dt class="mono text-[10px] uppercase tracking-[.2em] text-[var(--bone-dim)]">Exhibits</dt><dd class="display text-2xl font-black text-[var(--blood)]" data-counter="12.4" data-suffix="M">0M</dd></div>
         <div class="p-4"><dt class="mono text-[10px] uppercase tracking-[.2em] text-[var(--bone-dim)]">Cited answers</dt><dd class="display text-2xl font-black" data-counter="99.8" data-suffix="%">0%</dd></div>
         <div class="p-4"><dt class="mono text-[10px] uppercase tracking-[.2em] text-[var(--bone-dim)]">Corpora</dt><dd class="display text-2xl font-black" data-counter="40" data-suffix="+">0+</dd></div>
@@ -299,46 +289,46 @@ html[data-light] .mask-word{transition-delay:.1s}
     <style id="scene-theme">
       #scene-stage{position:absolute;left:50%;top:50%;width:480px;height:520px;transform:translate(-50%,-50%);transform-origin:50% 50%;will-change:transform}
       #research-scene [data-wheel]{position:absolute;left:50%;top:34px;transform:translateX(-50%);will-change:transform}
-      #research-scene .rs-line{position:absolute;left:70px;top:118px;width:340px;height:2px;background:var(--line, rgba(236,226,207,0.24))}
+      #research-scene .rs-line{position:absolute;left:70px;top:118px;width:340px;height:2px;background:var(--line, rgba(241,245,249,0.24))}
       #research-scene .rs-line2{top:132px;opacity:.6}
       #rs-book{position:absolute;left:92px;top:150px;width:304px;height:196px;cursor:pointer}
-      .rs-cover{position:absolute;inset:0;background:#c1121f;border:1px solid #ece2cf;border-radius:2px}
-      .rs-spine{position:absolute;left:50%;top:0;width:8px;height:100%;margin-left:-4px;background:#d4af37;border-left:1px solid #ece2cf}
-      .rs-page{position:absolute;top:4px;bottom:4px;width:calc(50% - 4px);background:#ece2cf;color:#16130d;border:1px solid rgba(22,19,13,.4);display:flex;flex-direction:column;gap:4px;padding:10px 9px;box-sizing:border-box;overflow:hidden}
-      .rs-l{left:4px;border-radius:2px 0 0 2px;box-shadow:inset -14px 0 18px -18px rgba(22,19,13,.5)}
-      .rs-r{right:4px;border-radius:0 2px 2px 0;box-shadow:inset 14px 0 18px -18px rgba(22,19,13,.5)}
-      .rs-fk{font:700 7.5px/1 monospace;letter-spacing:.12em;text-transform:uppercase;color:#c1121f}
-      .rs-ft{font:700 12px/1.15 'Fraunces',serif;letter-spacing:-.01em;color:#16130d;margin-top:2px}
-      .rs-txt{font:400 8.2px/1.4 monospace;color:#16130d;opacity:.94;margin-top:2px}
-      .rs-hl{position:relative;font-weight:700;color:#c1121f}
-      .rs-hl::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:#c1121f;transform:scaleX(0);transform-origin:left center;will-change:transform}
-      .rs-ff{font:400 6.5px/1.4 monospace;letter-spacing:.08em;color:#7d7566;margin-top:auto;padding-top:3px;border-top:1px solid rgba(22,19,13,.25)}
-      .rs-ask{font:400 8px/1.4 monospace;text-align:left;color:#16130d;background:rgba(193,18,31,.08);border:1px solid rgba(193,18,31,.55);border-radius:2px;padding:4px 6px;cursor:pointer;transition:background .2s ease-out}
-      .rs-ask:hover{background:rgba(193,18,31,.18)}
-      .rs-curl{position:absolute;inset:0;background:linear-gradient(90deg,transparent 20%,rgba(22,19,13,.28) 55%,rgba(22,19,13,.5) 100%);transform:translateX(60%);z-index:5;pointer-events:none;will-change:transform}
+      .rs-cover{position:absolute;inset:0;background:#0EA5E9;border:1px solid #F1F5F9;border-radius:2px}
+      .rs-spine{position:absolute;left:50%;top:0;width:8px;height:100%;margin-left:-4px;background:#38BDF8;border-left:1px solid #F1F5F9}
+      .rs-page{position:absolute;top:4px;bottom:4px;width:calc(50% - 4px);background:#F1F5F9;color:#0F172A;border:1px solid rgba(15,23,42,.4);display:flex;flex-direction:column;gap:4px;padding:10px 9px;box-sizing:border-box;overflow:hidden}
+      .rs-l{left:4px;border-radius:2px 0 0 2px;box-shadow:inset -14px 0 18px -18px rgba(15,23,42,.5)}
+      .rs-r{right:4px;border-radius:0 2px 2px 0;box-shadow:inset 14px 0 18px -18px rgba(15,23,42,.5)}
+      .rs-fk{font:700 7.5px/1 monospace;letter-spacing:.12em;text-transform:uppercase;color:#0EA5E9}
+      .rs-ft{font:700 12px/1.15 'Fraunces',serif;letter-spacing:-.01em;color:#0F172A;margin-top:2px}
+      .rs-txt{font:400 8.2px/1.4 monospace;color:#0F172A;opacity:.94;margin-top:2px}
+      .rs-hl{position:relative;font-weight:700;color:#0EA5E9}
+      .rs-hl::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:#0EA5E9;transform:scaleX(0);transform-origin:left center;will-change:transform}
+      .rs-ff{font:400 6.5px/1.4 monospace;letter-spacing:.08em;color:#64748B;margin-top:auto;padding-top:3px;border-top:1px solid rgba(15,23,42,.25)}
+      .rs-ask{font:400 8px/1.4 monospace;text-align:left;color:#0F172A;background:rgba(14,165,233,.08);border:1px solid rgba(14,165,233,.55);border-radius:2px;padding:4px 6px;cursor:pointer;transition:background .2s ease-out}
+      .rs-ask:hover{background:rgba(14,165,233,.18)}
+      .rs-curl{position:absolute;inset:0;background:linear-gradient(90deg,transparent 20%,rgba(15,23,42,.28) 55%,rgba(15,23,42,.5) 100%);transform:translateX(60%);z-index:5;pointer-events:none;will-change:transform}
       .rs-leaf{position:absolute;left:148px;top:4px;width:148px;height:188px;transform-style:preserve-3d;transform-origin:left center;z-index:20}
-      .rs-rest{position:absolute;left:0;top:4px;width:148px;height:188px;z-index:9;visibility:hidden;background:#ece2cf;color:#16130d;display:flex;flex-direction:column;gap:3px;padding:10px 9px;box-sizing:border-box;border:1px solid rgba(22,19,13,.4);border-radius:2px 0 0 2px;box-shadow:inset -14px 0 18px -18px rgba(22,19,13,.5);overflow:hidden}
+      .rs-rest{position:absolute;left:0;top:4px;width:148px;height:188px;z-index:9;visibility:hidden;background:#F1F5F9;color:#0F172A;display:flex;flex-direction:column;gap:3px;padding:10px 9px;box-sizing:border-box;border:1px solid rgba(15,23,42,.4);border-radius:2px 0 0 2px;box-shadow:inset -14px 0 18px -18px rgba(15,23,42,.5);overflow:hidden}
       .rs-rest.on{visibility:visible}
-      .rs-face{position:absolute;inset:0;background:#ece2cf;color:#16130d;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;gap:3px;padding:10px 9px;box-sizing:border-box;border:1px solid rgba(22,19,13,.35)}
+      .rs-face{position:absolute;inset:0;background:#F1F5F9;color:#0F172A;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;gap:3px;padding:10px 9px;box-sizing:border-box;border:1px solid rgba(15,23,42,.35)}
       .rs-face.rs-back{transform:rotateY(180deg)}
       .rs-pager{position:absolute;left:50%;top:356px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px}
       .rs-dots{display:flex;gap:4px}
-      .rs-dot{width:26px;height:18px;font:700 8px/1 monospace;letter-spacing:.06em;border:1px solid rgba(236,226,207,.4);border-radius:2px;background:transparent;color:#7d7566;cursor:pointer;transition:background .2s ease-out,color .2s ease-out}
-      .rs-dot.on{background:#c1121f;color:#ece2cf}
-      .rs-plabel{font:400 8px/1 monospace;letter-spacing:.16em;color:#7d7566;white-space:nowrap}
-      .rs-hint{position:absolute;left:50%;top:394px;transform:translateX(-50%);font:400 7.5px/1 monospace;letter-spacing:.18em;text-transform:uppercase;color:#d4af37;white-space:nowrap;pointer-events:none}
+      .rs-dot{width:26px;height:18px;font:700 8px/1 monospace;letter-spacing:.06em;border:1px solid rgba(241,245,249,.4);border-radius:2px;background:transparent;color:#64748B;cursor:pointer;transition:background .2s ease-out,color .2s ease-out}
+      .rs-dot.on{background:#0EA5E9;color:#F1F5F9}
+      .rs-plabel{font:400 8px/1 monospace;letter-spacing:.16em;color:#64748B;white-space:nowrap}
+      .rs-hint{position:absolute;left:50%;top:394px;transform:translateX(-50%);font:400 7.5px/1 monospace;letter-spacing:.18em;text-transform:uppercase;color:#38BDF8;white-space:nowrap;pointer-events:none}
       .rs-stack{position:absolute;left:10px;top:210px;width:74px;display:flex;align-items:flex-end;gap:4px;will-change:transform}
-      .rs-spineb{display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;box-sizing:border-box;border:1px solid rgba(236,226,207,.35);border-radius:2px}
-      .rs-spineb span,.rs-spineb{color:#d4af37}
-      .rs-b1{width:22px;height:96px;background:#6b4423}
-      .rs-b2{width:22px;height:120px;background:#6b4423}
-      .rs-b3{width:30px;height:78px;background:#4a2e17}
+      .rs-spineb{display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;box-sizing:border-box;border:1px solid rgba(241,245,249,.35);border-radius:2px}
+      .rs-spineb span,.rs-spineb{color:#38BDF8}
+      .rs-b1{width:22px;height:96px;background:#1E3A5F}
+      .rs-b2{width:22px;height:120px;background:#1E3A5F}
+      .rs-b3{width:30px;height:78px;background:#0F2744}
       .rs-spineb{font:italic 8px/1 monospace;letter-spacing:.14em;writing-mode:vertical-rl;transform:rotate(180deg)}
       .rs-gav{position:absolute;right:12px;top:190px;width:84px;height:150px}
-      .rs-case{position:absolute;left:0;bottom:0;width:84px;height:12px;background:#6b4423;border:1px solid rgba(236,226,207,.35)}
-      .rs-beat{position:absolute;left:-6px;bottom:12px;width:96px;height:3px;background:#9aa97c}
-      .rs-handle{position:absolute;left:32px;bottom:34px;width:18px;height:92px;background:#8a5a3b;border:1px solid rgba(236,226,207,.35);transform-origin:50% 100%}
-      .rs-head{position:absolute;left:12px;bottom:112px;width:56px;height:44px;background:#161310;border:1px solid rgba(236,226,207,.35);border-radius:3px;transform-origin:50% 100%}
+      .rs-case{position:absolute;left:0;bottom:0;width:84px;height:12px;background:#1E3A5F;border:1px solid rgba(241,245,249,.35)}
+      .rs-beat{position:absolute;left:-6px;bottom:12px;width:96px;height:3px;background:#14B8A6}
+      .rs-handle{position:absolute;left:32px;bottom:34px;width:18px;height:92px;background:#334155;border:1px solid rgba(241,245,249,.35);transform-origin:50% 100%}
+      .rs-head{position:absolute;left:12px;bottom:112px;width:56px;height:44px;background:#111827;border:1px solid rgba(241,245,249,.35);border-radius:3px;transform-origin:50% 100%}
     </style>
   </div>
 </header>
@@ -370,7 +360,7 @@ html[data-light] .mask-word{transition-delay:.1s}
   <div class="container pt-20 md:pt-28">
     <div class="flex items-end justify-between flex-wrap gap-4" data-reveal>
       <div>
-        <p class="eyebrow"><i>01.</i> The board</p>
+        <p class="eyebrow"><i>Evidence</i> The board</p>
         <h2 class="display font-black text-[clamp(2.2rem,5vw,4rem)] leading-[.95] mt-4">
           Judgments on the board,<br><span class="italic text-[var(--blood)]">threads under them.</span>
         </h2>
@@ -396,7 +386,7 @@ html[data-light] .mask-word{transition-delay:.1s}
         <span class="c-tape">Exhibit A · Bail</span>
         <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
         <h3 class="display font-bold text-xl">AIR 2024 SC 118</h3>
-        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Bail under CrPC §439 — triple test: flight, tampering, gravity of offence. Court must record reasons, however brief.</p>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Bail under CrPC §439: triple test: flight, tampering, gravity of offence. Court must record reasons, however brief.</p>
         <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
           <span class="text-[var(--bone-dim)]">cited 214×</span>
           <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="Bail provisions under CrPC">Open matter</button>
@@ -407,7 +397,7 @@ html[data-light] .mask-word{transition-delay:.1s}
       <article class="exhibit ex-two card-brut" data-reveal>
         <span class="c-tape">Exhibit B · Constitution</span>
         <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
-        <h3 class="display font-bold text-xl">Art. 21 — the right itself</h3>
+        <h3 class="display font-bold text-xl">Art. 21: the right itself</h3>
         <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Life and personal liberty: procedure must be fair, just, reasonable. Expanded by the Court at every turn since A.K. Gopalan.</p>
         <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
           <span class="text-[var(--bone-dim)]">updated today</span>
@@ -431,8 +421,8 @@ html[data-light] .mask-word{transition-delay:.1s}
       <article class="exhibit ex-four card-brut" data-reveal>
         <span class="c-tape">Exhibit D · IBC</span>
         <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
-        <h3 class="display font-bold text-xl">CIRP — the 330-day clock</h3>
-        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Committee of creditors, resolution plan, mandatory timeline. The Code leans on speed — the board leans on you knowing it.</p>
+        <h3 class="display font-bold text-xl">CIRP: the 330-day clock</h3>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Committee of creditors, resolution plan, mandatory timeline. The Code leans on speed, and the board leans on you knowing it.</p>
         <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
           <span class="text-[var(--bone-dim)]">74 rulings</span>
           <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="CIRP initiation process under IBC">Open matter</button>
@@ -444,7 +434,7 @@ html[data-light] .mask-word{transition-delay:.1s}
         <span class="c-tape">Exhibit E · IEA</span>
         <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
         <h3 class="display font-bold text-xl">Hearsay, on the stand</h3>
-        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Facts admitted, not proved, are proved. Oral evidence must be direct — hearsay walks, unless an exception lets it stay.</p>
+        <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">Facts admitted, not proved, are proved. Oral evidence must be direct. Hearsay walks, unless an exception lets it stay.</p>
         <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
           <span class="text-[var(--bone-dim)]">51 matters</span>
           <button class="btn !py-1.5 !px-3 !text-[10px]" data-app-q="What constitutes hearsay under the Evidence Act">Open matter</button>
@@ -455,7 +445,7 @@ html[data-light] .mask-word{transition-delay:.1s}
       <article class="exhibit ex-six card-brut" data-reveal>
         <span class="c-tape">Exhibit F · POCSO</span>
         <span class="pin" style="left:50%;top:-24px" aria-hidden="true"></span>
-        <h3 class="display font-bold text-xl">POCSO §33 — trial, shielded</h3>
+        <h3 class="display font-bold text-xl">POCSO §33: trial, shielded</h3>
         <p class="mono text-[11px] text-[var(--bone-dim)] mt-2 leading-relaxed">In-camera trials, child-friendly procedure, no direct confrontation. The statute guards the witness as fiercely as the charge.</p>
         <div class="mt-4 flex items-center justify-between mono text-[10px] uppercase tracking-[.18em]">
           <span class="text-[var(--bone-dim)]">43 matters</span>
@@ -464,7 +454,7 @@ html[data-light] .mask-word{transition-delay:.1s}
       </article>
     </div>
   </div>
-  <p class="container mt-6 mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)]">Pins are matters · threads are the reasoning trail — pull one and the research opens.</p>
+  <p class="container mt-6 mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)]">Pins are matters · threads are the reasoning trail. Pull one and the research opens.</p>
 </section>
 
 <!-- ═══════════════ THE LIBRARY — acts on the shelf ═══════════════ -->
@@ -472,7 +462,7 @@ html[data-light] .mask-word{transition-delay:.1s}
   <div class="container">
     <div class="flex items-end justify-between flex-wrap gap-4" data-reveal>
       <div>
-        <p class="eyebrow"><i>02.</i> The library</p>
+        <p class="eyebrow"><i>Corpus</i> The library</p>
         <h2 class="display font-black text-[clamp(2.2rem,5vw,4rem)] leading-[.95] mt-4">
           Nine codes. One shelf.<br><span class="italic text-[var(--blood)]">Indexed to the section.</span>
         </h2>
@@ -500,7 +490,7 @@ html[data-light] .mask-word{transition-delay:.1s}
       <div class="card-brut">
         <span class="stamp soft stamp-soft">Full-text + semantic</span>
         <h3 class="display font-bold text-lg mt-4">Two engines, one answer</h3>
-        <p class="mono text-[11.5px] text-[var(--bone-dim)] leading-relaxed mt-3">Semantic meaning and exact wording merged — the judgment that says it differently still surfaces; the one that quotes it still ranks.</p>
+        <p class="mono text-[11.5px] text-[var(--bone-dim)] leading-relaxed mt-3">Semantic meaning and exact wording merged. The judgment that says it differently still surfaces; the one that quotes it still ranks.</p>
       </div>
       <div class="card-brut">
         <span class="stamp">Always current</span>
@@ -516,7 +506,7 @@ html[data-light] .mask-word{transition-delay:.1s}
   <div class="container">
     <div class="flex items-end justify-between flex-wrap gap-4 mb-12" data-reveal>
       <div>
-        <p class="eyebrow"><i>03.</i> The pipeline</p>
+        <p class="eyebrow"><i>Process</i> The pipeline</p>
         <h2 class="display font-black text-[clamp(2.2rem,5vw,4rem)] leading-[.95] mt-4">Read like counsel.<br><span class="italic text-[var(--blood)]">Not like a search bar.</span></h2>
       </div>
       <p class="mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)] pb-2">Every answer passes all four stages</p>
@@ -527,7 +517,7 @@ html[data-light] .mask-word{transition-delay:.1s}
         <span class="rp-num">01</span>
         <div class="py-2">
           <h3 class="display font-bold text-xl md:text-2xl rp-title">Classify the question</h3>
-          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Intent detection names the instrument: bail, sentencing, procedure, evidence, compliance. Wrong statute in, wrong authority out — so we classify before we retrieve.</p>
+          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Intent detection names the instrument: bail, sentencing, procedure, evidence, compliance. Wrong statute in, wrong authority out. So we classify before we retrieve.</p>
         </div>
         <span class="rp-tag mono text-[9px] tracking-[.2em] uppercase text-[var(--bone-dim)] hidden md:block pt-2">intent →</span>
       </div>
@@ -543,15 +533,15 @@ html[data-light] .mask-word{transition-delay:.1s}
         <span class="rp-num">03</span>
         <div class="py-2">
           <h3 class="display font-bold text-xl md:text-2xl rp-title">Weigh the evidence</h3>
-          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Chunks are scored for relevance, currency and court hierarchy. The answer is drafted from the winners — with the losing side visible for your judgment.</p>
+          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Chunks are scored for relevance, currency and court hierarchy. The answer is drafted from the winners, with the losing side visible for your judgment.</p>
         </div>
         <span class="rp-tag mono text-[9px] tracking-[.2em] uppercase text-[var(--bone-dim)] hidden md:block pt-2">rank →</span>
       </div>
       <div class="row-pipe p-6 md:p-8">
         <span class="rp-num">04</span>
         <div class="py-2">
-          <h3 class="display font-bold text-xl md:text-2xl rp-title">Cite — or block the gate</h3>
-          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Groundedness verification: every proposition must trace to a source. Unverifiable claims never reach you — the gate returns the answer with a verdict instead.</p>
+          <h3 class="display font-bold text-xl md:text-2xl rp-title">Cite or block the gate</h3>
+          <p class="mono text-[11.5px] text-[var(--bone-dim)] rp-desc mt-2 max-w-xl leading-relaxed">Groundedness verification: every proposition must trace to a source. Unverifiable claims never reach you. The gate returns the answer with a verdict instead.</p>
         </div>
         <span class="rp-tag mono text-[9px] tracking-[.2em] uppercase text-[var(--bone-dim)] hidden md:block pt-2">cited →</span>
       </div>
@@ -568,7 +558,7 @@ html[data-light] .mask-word{transition-delay:.1s}
   <div class="container">
     <div class="flex items-end justify-between flex-wrap gap-4 mb-12" data-reveal>
       <div>
-        <p class="eyebrow"><i>04.</i> The fee schedule</p>
+        <p class="eyebrow"><i>Pricing</i> The fee schedule</p>
         <h2 class="display font-black text-[clamp(2.2rem,5vw,4rem)] leading-[.95] mt-4">Start free. Scale when<br><span class="italic text-[var(--blood)]">the caseload does.</span></h2>
       </div>
       <p class="mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)] pb-2">No per-seat games · no surprise usage walls</p>
@@ -588,7 +578,7 @@ html[data-light] .mask-word{transition-delay:.1s}
         <a href="#file" data-app-cta class="btn mt-8 w-full">Start free</a>
       </article>
 
-      <article class="card-brut flex flex-col relative border-[var(--blood)]">
+      <article class="card-brut flex flex-col relative border-[var(--blood)] border-2">
         <span class="c-tape">Most filed</span>
         <span class="stamp absolute right-2 top-2">FILED</span>
         <p class="mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)]">Pro</p>
@@ -627,10 +617,10 @@ html[data-light] .mask-word{transition-delay:.1s}
     <h2 class="display font-black text-[clamp(2.6rem,8vw,6.4rem)] leading-[.9] mt-7">
       File the research<br><span class="italic text-[var(--blood)]">tonight.</span>
     </h2>
-    <p class="mono text-[13px] text-[var(--bone-dim)] mt-6 max-w-md mx-auto leading-relaxed">Thirty minutes from this page to a cited answer — matter history in place, ready to defend.</p>
+    <p class="mono text-[13px] text-[var(--bone-dim)] mt-6 max-w-md mx-auto leading-relaxed">Thirty minutes from this page to a cited answer, matter history in place, ready to defend.</p>
     <div class="mt-10 flex flex-wrap justify-center gap-5">
       <a href="#" data-app-cta data-app-q="What is the punishment under Section 302 IPC?" class="btn btn-red magnetic px-8 py-4" data-magnetic>
-        Start free research — §302
+        Start free research · §302
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </a>
       <a href="#" data-app-cta class="btn magnetic px-8 py-4" data-magnetic>Talk to sales</a>
@@ -640,27 +630,27 @@ html[data-light] .mask-word{transition-delay:.1s}
 </section>
 
 <!-- ═══════════════ FOOTER ═══════════════ -->
-<footer class="relative border-t-2 border-[var(--line-strong)] bg-[var(--panel)]">
+<footer class="relative border-t border-[var(--line)] bg-[var(--panel)]">
   <div class="container py-16">
     <div class="grid md:grid-cols-6 gap-10">
       <div class="md:col-span-2">
         <a href="#top" class="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="var(--blood)"/><path d="M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12" stroke="var(--bone)" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--blood)"/><path d="M16 4.5V8M9.5 8h13M9.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M22.5 8l-3 8.2a3.6 3.6 0 0 0 6.2 0l-3-8.2M16 12.5V22M10 22h12" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span class="display font-black text-lg tracking-tight">Jury<span class="text-[var(--blood)] italic">AI</span></span>
         </a>
-        <p class="mt-4 mono text-[12px] text-[var(--bone-dim)] leading-relaxed">Intelligent legal research assistant. RAG-powered answers across millions of authorities — every proposition cited, every citation verifiable.</p>
+        <p class="mt-4 mono text-[12px] text-[var(--bone-dim)] leading-relaxed">Intelligent legal research assistant. RAG-powered answers across millions of authorities. Every proposition cited, every citation verifiable.</p>
         <div class="mt-6 flex gap-3">
-          <a href="https://x.com/juryai" target="_blank" rel="noopener" class="grid h-10 w-10 place-items-center border-2 border-[var(--line-strong)] hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="JuryAI on X">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 3h3l-7.2 8.3L21.8 21h-6.6l-4.4-5.8L5.6 21h-3l7.7-8.9L2.5 3h6.8l4 5.3L17.5 3zm-1.2 16h1.7L7.9 4.8H6.1L16.3 19z"/></svg>
+          <a href="https://x.com/juryai" target="_blank" rel="noopener" class="grid h-9 w-9 place-items-center border border-[var(--line-strong)] rounded-lg hover:border-[var(--blood)] hover:text-[var(--blood)] transition-all hover:scale-105" aria-label="JuryAI on X">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 3h3l-7.2 8.3L21.8 21h-6.6l-4.4-5.8L5.6 21h-3l7.7-8.9L2.5 3h6.8l4 5.3L17.5 3zm-1.2 16h1.7L7.9 4.8H6.1L16.3 19z"/></svg>
           </a>
-          <a href="https://t.me/juryai" target="_blank" rel="noopener" class="grid h-10 w-10 place-items-center border-2 border-[var(--line-strong)] hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="JuryAI on Telegram">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.7 4.3l-3.2 15.1c-.2 1-.9 1.3-1.7.8l-4.8-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.8L18.2 6c.4-.3-.1-.5-.6-.2L7.2 12.4l-4.7-1.5c-1-.3-1-1 .2-1.5l18.4-7.1c.9-.3 1.6.2 1.3 1.4z"/></svg>
+          <a href="https://t.me/juryai" target="_blank" rel="noopener" class="grid h-9 w-9 place-items-center border border-[var(--line-strong)] rounded-lg hover:border-[var(--blood)] hover:text-[var(--blood)] transition-all hover:scale-105" aria-label="JuryAI on Telegram">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.7 4.3l-3.2 15.1c-.2 1-.9 1.3-1.7.8l-4.8-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.8L18.2 6c.4-.3-.1-.5-.6-.2L7.2 12.4l-4.7-1.5c-1-.3-1-1 .2-1.5l18.4-7.1c.9-.3 1.6.2 1.3 1.4z"/></svg>
           </a>
-          <a href="https://www.linkedin.com/company/juryai" target="_blank" rel="noopener" class="grid h-10 w-10 place-items-center border-2 border-[var(--line-strong)] hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="JuryAI on LinkedIn">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5C4.98 4.88 3.87 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.5 8h4V23h-4zM8.5 8h3.8v2h.1c.5-1 1.8-2 3.7-2 4 0 4.9 2.6 4.9 6V23h-4v-8c0-1.9 0-4.3-2.6-4.3s-3 2-3 4.1V23h-4z"/></svg>
+          <a href="https://www.linkedin.com/company/juryai" target="_blank" rel="noopener" class="grid h-9 w-9 place-items-center border border-[var(--line-strong)] rounded-lg hover:border-[var(--blood)] hover:text-[var(--blood)] transition-all hover:scale-105" aria-label="JuryAI on LinkedIn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5C4.98 4.88 3.87 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.5 8h4V23h-4zM8.5 8h3.8v2h.1c.5-1 1.8-2 3.7-2 4 0 4.9 2.6 4.9 6V23h-4v-8c0-1.9 0-4.3-2.6-4.3s-3 2-3 4.1V23h-4z"/></svg>
           </a>
-          <a href="https://github.com/juryai" target="_blank" rel="noopener" class="grid h-10 w-10 place-items-center border-2 border-[var(--line-strong)] hover:border-[var(--blood)] hover:text-[var(--blood)] transition-colors" aria-label="JuryAI on GitHub">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>
+          <a href="https://github.com/juryai" target="_blank" rel="noopener" class="grid h-9 w-9 place-items-center border border-[var(--line-strong)] rounded-lg hover:border-[var(--blood)] hover:text-[var(--blood)] transition-all hover:scale-105" aria-label="JuryAI on GitHub">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>
           </a>
         </div>
       </div>
@@ -692,8 +682,8 @@ html[data-light] .mask-word{transition-delay:.1s}
         </ul>
       </nav>
     </div>
-    <div class="mt-12 border-t-2 border-[var(--line)] pt-5 flex items-center justify-between mono text-[10px] tracking-[.22em] uppercase text-[var(--bone-dim)] flex-wrap gap-3">
-      <span>© MMXXVI JURYAI — est. impartiality</span>
+    <div class="mt-12 border-t border-[var(--line)] pt-5 flex items-center justify-between mono text-[10px] tracking-[.18em] uppercase text-[var(--bone-dim)] flex-wrap gap-3">
+      <span>© MMXXVI JURYAI · est. impartiality</span>
       <span>Think like a barrister <span class="text-[var(--blood)]">·</span> cite like a demon</span>
     </div>
   </div>
@@ -710,15 +700,15 @@ var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 var FINE = window.matchMedia('(pointer: fine)').matches;
 
 /* ---------- lights toggle — dramatic invert surprise ---------- */
-var lightOn = localStorage.getItem('juryai.lights') === 'on';
+var darkOn = localStorage.getItem('juryai.theme') === 'dark';
 function paintLights(){
-  document.documentElement.toggleAttribute('data-light', lightOn);
+  document.documentElement.toggleAttribute('data-light', darkOn);
   var s = document.getElementById('light-state'), sm = document.getElementById('light-state-m');
-  var t = lightOn ? 'on' : 'off';
+  var t = darkOn ? 'Dark' : 'Light';
   if(s) s.textContent = t;
   if(sm) sm.textContent = t;
 }
-function toggleLights(){ lightOn = !lightOn; localStorage.setItem('juryai.lights', lightOn ? 'on' : 'off'); paintLights(); }
+function toggleLights(){ darkOn = !darkOn; localStorage.setItem('juryai.theme', darkOn ? 'dark' : 'light'); paintLights(); }
 paintLights();
 var lt = document.getElementById('light-toggle'), ltm = document.getElementById('light-toggle-m');
 if(lt) lt.addEventListener('click', toggleLights);
@@ -866,7 +856,7 @@ window.__juryai = { REDUCED:REDUCED, get scrollBoost(){ return scrollBoost; } };
 /* ---------- app deep-links: every CTA drives into the live app ---------- */
 var APP_URL = 'http://localhost:5174';
 function appHref(query){
-  return APP_URL + '/#/app' + (query ? '?q=' + encodeURIComponent(query) : '');
+  return APP_URL + '/ask' + (query ? '?q=' + encodeURIComponent(query) : '');
 }
 document.querySelectorAll('[data-app-cta]').forEach(function(el){
   el.href = appHref(el.getAttribute('data-app-q') || '');
@@ -910,8 +900,8 @@ var SPREADS = [
 (function(){
   function chakra(){
     var spokes = '';
-    for(var k = 0; k < 24; k++) spokes += '<line x1="30" y1="30" x2="30" y2="4" transform="rotate(' + (k*15) + ' 30 30)" stroke="#d4af37" stroke-width="2"/>';
-    return '<svg width="44" height="44" viewBox="0 0 60 60" fill="none"><circle cx="30" cy="30" r="26" stroke="#d4af37" stroke-width="2"/><circle cx="30" cy="30" r="20" stroke="#d4af37" stroke-width="1" opacity="0.6"/><circle cx="30" cy="30" r="3.5" fill="#d4af37"/>' + spokes + '</svg>';
+    for(var k = 0; k < 24; k++) spokes += '<line x1="30" y1="30" x2="30" y2="4" transform="rotate(' + (k*15) + ' 30 30)" stroke="#38BDF8" stroke-width="2"/>';
+    return '<svg width="44" height="44" viewBox="0 0 60 60" fill="none"><circle cx="30" cy="30" r="26" stroke="#38BDF8" stroke-width="2"/><circle cx="30" cy="30" r="20" stroke="#38BDF8" stroke-width="1" opacity="0.6"/><circle cx="30" cy="30" r="3.5" fill="#38BDF8"/>' + spokes + '</svg>';
   }
   var wheel = stage.querySelector('[data-wheel]');
   if(wheel) wheel.innerHTML = chakra();
@@ -971,7 +961,7 @@ var engaged = false;
     engaged = true;
     stopAuto();
     if(hint){ hint.style.opacity = 0; hint.style.transition = 'opacity .6s ease-out'; }
-    location.href = 'http://localhost:5174/#/app?q=' + b.getAttribute('data-ask');
+    location.href = 'http://localhost:5174/ask?q=' + b.getAttribute('data-ask');
   });
 });
 
@@ -1058,6 +1048,19 @@ function goTo(target, instant){
   if(target === idx) return;
   var cur = idx;
   idx = target;
+  var fwd = target > cur;
+
+  // Self-heal every leaf NOT part of this transition to its correct rest
+  // state, instantly. A prior flip's GSAP tween can fail to reach
+  // onComplete (a backgrounded tab throttles requestAnimationFrame, or two
+  // auto-turn ticks land close together) — without this, a leaf stuck
+  // mid-flip keeps showing stale content forever while the pager silently
+  // keeps moving on.
+  for(var k2 = 0; k2 < total; k2++){
+    if(fwd ? (k2 >= cur && k2 < target) : (k2 >= target && k2 < cur)) continue;
+    if(k2 < target) collapseLeaf(k2); else restoreLeaf(k2);
+  }
+
   if(target > cur){
     for(var k = cur; k < target; k++){
       if(instant) collapseLeaf(k);
@@ -1072,7 +1075,14 @@ function goTo(target, instant){
   paint();
   if(!instant && hint){ hint.style.opacity = 0; hint.style.transition = 'opacity .6s ease-out'; }
 }
-function next(){ goTo(idx + 1 === total ? 0 : idx + 1); }
+// Ping-pong the auto-turn: forward (left-to-right) to the last spread,
+// then backward (right-to-left) to the first, repeat.
+var dir = 1;
+function next(){
+  if(dir === 1 && idx >= total - 1) dir = -1;
+  else if(dir === -1 && idx <= 0) dir = 1;
+  goTo(idx + dir);
+}
 
 /* ---- one gavel beat per interaction ---- */
 var tapOnce = null;

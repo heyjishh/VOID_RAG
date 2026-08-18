@@ -38,3 +38,27 @@ npm-debug.log*
 *.sqlite3
 .ingested_manifest.json
 .gstack/
+backend/uv.lock
+graphify-out/*
+backend/.claude/*
+.claude-flow/*
+**/.swarm/*
+.claude/*
+.serena/.gitignore
+.serena/project.yml
+backend/.claude-flow/*
+backend/.serena/*
+=3.0.0
+.tokensave
+
+# Ruflo local secrets and runtime data
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+
+# Codex local configuration
+.codex/
+# Claude Flow runtime data
+# Environment variables

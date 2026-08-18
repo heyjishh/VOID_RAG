@@ -157,7 +157,7 @@ async def test_legal_retrieve_node_invokes_on_step_for_start_and_done():
     observed: list[dict] = []
 
     class _FakeReranker:
-        def rerank(self, question, chunks, top_k):
+        def rerank(self, question, chunks, top_k, as_of_date=None):
             assert [s["step"] for s in observed] == ["internal_retrieval_start"], (
                 "internal_retrieval_start must fire before retrieval runs"
             )
@@ -200,7 +200,7 @@ async def test_interact_retrieve_node_searches_session_store_scoped_to_session()
         return [{"text": "your clause", "source": "my_upload.pdf", "page": 0, "score": 0.9}]
 
     class _FakeReranker:
-        def rerank(self, question, chunks, top_k):
+        def rerank(self, question, chunks, top_k, as_of_date=None):
             return chunks
 
     with patch("app.core.retrieval.session_store.search", fake_search), \
@@ -218,7 +218,7 @@ async def test_interact_retrieve_node_invokes_on_step_for_start_and_done():
     observed: list[dict] = []
 
     class _FakeReranker:
-        def rerank(self, question, chunks, top_k):
+        def rerank(self, question, chunks, top_k, as_of_date=None):
             assert [s["step"] for s in observed] == ["internal_retrieval_start"]
             return []
 
@@ -274,21 +274,24 @@ async def test_route_and_retrieve_ask_mode_uses_legal_retrieve_not_interact():
 
 
 @pytest.mark.asyncio
-async def test_evidence_merge_node_tags_interact_domain_in_interact_mode():
+async def test_evidence_merge_node_tags_session_domain_in_interact_mode():
     """merge_evidence always tags legal_chunks-derived items 'internal'; in
-    interact mode these came from session_store, not the shared corpus, so
-    evidence_merge_node must relabel them for the frontend's mode badge."""
+    interact mode these came from session_store, not the shared S3 corpus, so
+    evidence_merge_node must relabel them 'session' or the frontend's document
+    viewer 404s trying to fetch them from S3. Web items must stay 'web'."""
     from app.core.graph.nodes import evidence_merge_node
 
     state = {
         "mode": "interact",
         "legal_chunks": [{"text": "my clause", "source": "upload.pdf", "page": 0, "score": 0.9}],
-        "web_evidence": [],
+        "web_evidence": [
+            {"content": "web text", "title": "t", "url": "http://x", "source_type": "news", "authority_score": 0.9}
+        ],
     }
     result = await evidence_merge_node(state)
 
-    assert result["merged_evidence"]
-    assert all(item["domain"] == "interact" for item in result["merged_evidence"])
+    domains = {item["domain"] for item in result["merged_evidence"]}
+    assert domains == {"session", "web"}
 
 
 @pytest.mark.asyncio
@@ -304,3 +307,23 @@ async def test_evidence_merge_node_keeps_internal_domain_in_ask_mode():
     result = await evidence_merge_node(state)
 
     assert all(item["domain"] == "internal" for item in result["merged_evidence"])
+
+
+def test_answer_format_instructions_differ_by_output_format():
+    """CREAC/IRAC/BRIEF must each produce distinct, correctly-shaped section-header
+    instructions — regression guard for output_format silently not affecting generation."""
+    from app.core.graph.nodes import answer_format_instructions
+
+    creac = answer_format_instructions("CREAC")
+    irac = answer_format_instructions("IRAC")
+    brief = answer_format_instructions("BRIEF")
+
+    assert len({creac, irac, brief}) == 3
+    for header in ("Conclusion", "Rule", "Explanation", "Application"):
+        assert header in creac
+    for header in ("Issue", "Rule", "Application", "Conclusion"):
+        assert header in irac
+    assert "##" not in brief
+    # unknown/missing format falls back to CREAC rather than raising
+    assert answer_format_instructions("bogus") == creac
+    assert answer_format_instructions(None) == creac

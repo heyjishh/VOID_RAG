@@ -36,11 +36,49 @@ def test_settings_gateway_first_when_key_set():
     import importlib
     import app.config.settings as sm
     from unittest.mock import patch
-    with patch.dict("os.environ", {"GATEWAY_KEY": "testkey123", "GATEWAY_URL": "http://localhost:8080/v1"}):
+    with patch.dict("os.environ", {
+        "GATEWAY_KEY": "testkey123", "GATEWAY_URL": "http://localhost:8080/v1",
+        "GROQ_API_KEY": "", "NVIDIA_API_KEY": "", "MISTRAL_API_KEY": "",
+        "OPENAI_API_KEY": "", "ANTHROPIC_API_KEY": "",
+        "MISTRAL_KEY": "", "GOOGLE_GEMINI_KEY": "", "SAMBANOVA_KEY": "", "CLOUDFLARE_KEY": "", "CLOUDFLARE_ACCOUNT_ID": "",
+    }):
         importlib.reload(sm)
         chain = sm.Settings().llm_provider_chain
-    assert chain[0]["api_base"] == "http://localhost:8080/v1"
+    assert chain[0]["base_url"] == "http://localhost:8080/v1"
     assert chain[0]["api_key"] == "testkey123"
+
+
+def test_settings_groq_takes_priority_over_gateway():
+    import importlib
+    import app.config.settings as sm
+    from unittest.mock import patch
+    with patch.dict("os.environ", {
+        "GATEWAY_KEY": "gatewaykey", "GATEWAY_URL": "http://localhost:8080/v1",
+        "GROQ_API_KEY": "groqkey123", "NVIDIA_API_KEY": "",
+        "MISTRAL_KEY": "", "GOOGLE_GEMINI_KEY": "", "SAMBANOVA_KEY": "", "CLOUDFLARE_KEY": "", "CLOUDFLARE_ACCOUNT_ID": "",
+    }):
+        importlib.reload(sm)
+        chain = sm.Settings().llm_provider_chain
+    assert chain[0]["provider_name"] == "groq"
+    assert chain[0]["api_key"] == "groqkey123"
+    assert chain[1]["provider_name"] == "gateway"
+
+
+def test_settings_nvidia_falls_between_groq_and_gateway():
+    import importlib
+    import app.config.settings as sm
+    from unittest.mock import patch
+    with patch.dict("os.environ", {
+        "GATEWAY_KEY": "gatewaykey", "GATEWAY_URL": "http://localhost:8080/v1",
+        "GROQ_API_KEY": "groqkey123",
+        "NVIDIA_API_KEY": "nvapi-testkey",
+        "MISTRAL_KEY": "", "GOOGLE_GEMINI_KEY": "", "SAMBANOVA_KEY": "", "CLOUDFLARE_KEY": "", "CLOUDFLARE_ACCOUNT_ID": "",
+    }):
+        importlib.reload(sm)
+        chain = sm.Settings().llm_provider_chain
+    assert [p["provider_name"] for p in chain[:3]] == ["groq", "nvidia", "gateway"]
+    assert chain[1]["api_key"] == "nvapi-testkey"
+    assert chain[1]["base_url"] == "https://integrate.api.nvidia.com/v1"
 
 
 def test_chat_response_has_source_chunks():
@@ -56,3 +94,20 @@ def test_chat_response_has_source_chunks():
     assert r.source_chunks[0].source == "ipc.pdf"
     assert r.source_chunks[0].verified is True
     assert r.source_chunks[0].domain == "internal"
+
+def test_settings_all_direct_providers_present_when_keys_set():
+    import importlib
+    import app.config.settings as sm
+    from unittest.mock import patch
+    with patch.dict("os.environ", {
+        "GROQ_API_KEY": "g", "NVIDIA_API_KEY": "n", "MISTRAL_KEY": "m",
+        "GOOGLE_GEMINI_KEY": "gg", "SAMBANOVA_KEY": "s",
+        "CLOUDFLARE_KEY": "c", "CLOUDFLARE_ACCOUNT_ID": "acct123",
+        "GATEWAY_KEY": "", "MISTRAL_API_KEY": "", "OPENAI_API_KEY": "", "ANTHROPIC_API_KEY": "",
+    }):
+        importlib.reload(sm)
+        chain = sm.Settings().llm_provider_chain
+    names = [p["provider_name"] for p in chain]
+    assert names == ["groq", "nvidia", "mistral", "gemini", "sambanova", "cloudflare"]
+    cf = next(p for p in chain if p["provider_name"] == "cloudflare")
+    assert cf["base_url"] == "https://api.cloudflare.com/client/v4/accounts/acct123/ai/v1"

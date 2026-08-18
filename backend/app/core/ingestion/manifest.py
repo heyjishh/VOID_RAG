@@ -31,15 +31,13 @@ class Manifest:
         self._data[key] = {"size": size, "etag": etag}
         self._save()
 
-    def mark_ingested_batch(self, entries: list[dict]):
-        """entries: list of {key, size, etag}"""
-        for e in entries:
-            self._data[e["key"]] = {"size": e["size"], "etag": e["etag"]}
-        self._save()
-
     def remove(self, key: str):
         self._data.pop(key, None)
         self._save()
 
     def count(self) -> int:
         return len(self._data)
+
+    def clear(self):
+        self._data = {}
+        self._save()

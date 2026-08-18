@@ -1,0 +1,9 @@
+{
+  "started_at": 1787029368.0562813,
+  "finished_at": 1787030143.081406,
+  "ingested": 0,
+  "failed": 7,
+  "skipped": 840,
+  "total": 847,
+  "error": null
+}

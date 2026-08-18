@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import gsap from 'gsap'
-import { triggerIngest, getSyncStatus } from '../lib/api.js'
+import { triggerIngest, getSyncStatus, getLlmStatus } from '../lib/api.js'
 import { PROMPT_LIBRARY } from '../lib/promptLibrary.js'
 import { prefersReducedMotion } from '../lib/motion.js'
 import ThemeToggle from './ThemeToggle.jsx'
@@ -10,11 +10,21 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [syncInfo, setSyncInfo] = useState(null)
+  const [llmStatus, setLlmStatus] = useState(null)
   const drawerRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
-    let interval
+    getLlmStatus().then(info => { if (!cancelled) setLlmStatus(info) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // Fixed 10s cadence regardless of run state — the backend caches the
+  // expensive S3-listing part of /ingest/status, so polling on a flat
+  // interval no longer hammers S3 the way a sub-second "while running"
+  // interval used to (that was the actual cause of ingestion failures).
+  useEffect(() => {
+    let cancelled = false
 
     async function refresh() {
       try {
@@ -22,13 +32,11 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
         if (cancelled) return
         setSyncInfo(info)
         setBusy(Boolean(info.running))
-        clearInterval(interval)
-        interval = setInterval(refresh, info.running ? 1500 : 30000)
       } catch { /* backend not reachable — keep last state */ }
     }
 
     refresh()
-    interval = setInterval(refresh, 30000)
+    const interval = setInterval(refresh, 10000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [])
 
@@ -71,7 +79,7 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
         ref={drawerRef}
         className="flex flex-col gap-6 overflow-y-auto"
         style={{
-          width: '380px',
+          width: 'min(380px, 100vw)',
           height: '100%',
           background: 'var(--bg-card)',
           backdropFilter: 'blur(28px) saturate(180%)',
@@ -230,6 +238,37 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
               <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--text-secondary)' }}>
                 ✓ {syncInfo.ingested} ingested · ⚠ {syncInfo.failed} failed · – {syncInfo.skipped} skipped
               </p>
+              <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                {syncInfo.concurrency ?? '—'} workers · {syncInfo.cpu_percent != null ? `${Math.round(syncInfo.cpu_percent)}% cpu` : '—'}
+              </p>
+            </div>
+          </section>
+        )}
+
+        {/* Last Sync — persists across app restarts/reopens, so if the user
+            closed the tab (or the server bounced) mid-run or after one
+            finished, reopening Settings still shows what happened last. */}
+        {!syncInfo?.running && syncInfo?.last_sync && (
+          <section>
+            <SectionTitle>Last Sync</SectionTitle>
+            <div className="rounded-[var(--radius-sm)] p-3" style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-default)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {syncInfo.last_sync.error ? 'Stopped with an error' : 'Finished'}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+                  {syncInfo.last_sync.finished_at ? new Date(syncInfo.last_sync.finished_at * 1000).toLocaleString() : '—'}
+                </span>
+              </div>
+              <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                ✓ {syncInfo.last_sync.ingested} ingested · ⚠ {syncInfo.last_sync.failed} failed · – {syncInfo.last_sync.skipped} skipped
+                {syncInfo.last_sync.total ? ` (of ${syncInfo.last_sync.total})` : ''}
+              </p>
+              {syncInfo.last_sync.error && (
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--color-error)' }}>
+                  {syncInfo.last_sync.error}
+                </p>
+              )}
             </div>
           </section>
         )}
@@ -260,7 +299,8 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
           )}
         </section>
 
-        {/* LLM Provider */}
+        {/* LLM Provider — live, not a static description: reflects whichever
+            provider settings.llm_provider_chain actually resolves to first. */}
         <section>
           <SectionTitle>LLM Provider</SectionTitle>
           <div style={{
@@ -272,22 +312,33 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
             color: 'var(--text-secondary)',
             lineHeight: 1.8,
           }}>
-            <p style={{ margin: '0 0 6px', color: 'var(--text-primary)', fontWeight: 500 }}>
-              Free gateway (auto-configured)
-            </p>
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontFamily: "var(--font-mono)", fontSize: '11px' }}>
-              GATEWAY_URL=http://localhost:8080/v1<br />
-              GATEWAY_KEY → auto-detected
-            </p>
-            <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
-              260+ models via local gateway
-            </p>
+            {!llmStatus ? (
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>Checking connection…</p>
+            ) : !llmStatus.configured ? (
+              <p style={{ margin: 0, color: 'var(--color-error)' }}>No provider configured — set an API key or GATEWAY_KEY.</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2" style={{ margin: '0 0 6px' }}>
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: 'var(--sage)' }}
+                  />
+                  <p style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 500, textTransform: 'capitalize' }}>
+                    {llmStatus.provider} · connected
+                  </p>
+                </div>
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontFamily: "var(--font-mono)", fontSize: '11px', wordBreak: 'break-all' }}>
+                  model={llmStatus.model}
+                  {llmStatus.base_url && <><br />{llmStatus.base_url}</>}
+                </p>
+              </>
+            )}
           </div>
         </section>
 
         {/* Web Search */}
         <section>
-          <SectionTitle>Web Search Providers</SectionTitle>
+          <SectionTitle>Web Search</SectionTitle>
           <div style={{
             background: 'var(--bg-soft)',
             border: '1px solid var(--border-default)',
@@ -295,17 +346,22 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
             padding: '12px',
             fontSize: '12px',
             color: 'var(--text-secondary)',
-            lineHeight: 1.9,
+            lineHeight: 1.8,
           }}>
-            <div>
-              <span style={{ color: 'var(--ink)', fontWeight: 500 }}>TAVILY_API_KEY</span>
-              {' '}→ Tavily (best)
-            </div>
-            <div>
-              <span style={{ color: 'var(--ink)', fontWeight: 500 }}>BRAVE_SEARCH_API_KEY</span>
-              {' '}→ Brave Search
-            </div>
-            <div style={{ color: 'var(--text-muted)' }}>None set → DuckDuckGo (free)</div>
+            {llmStatus?.web_search_provider ? (
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: 'var(--sage)' }}
+                />
+                <p style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 500, textTransform: 'capitalize' }}>
+                  {llmStatus.web_search_provider}
+                </p>
+                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>active</span>
+              </div>
+            ) : (
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>Checking…</p>
+            )}
           </div>
         </section>
       </div>

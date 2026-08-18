@@ -2,8 +2,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 import boto3
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config.settings import settings
+
+_BOTO_CONFIG = Config(
+    connect_timeout=3,
+    read_timeout=5,
+    retries={"max_attempts": 1, "mode": "standard"},
+    parameter_validation=False,
+    s3={"addressing_style": "path"},
+)
 
 
 class MultiS3Loader:
@@ -33,6 +42,7 @@ class MultiS3Loader:
             self._clients[bucket] = boto3.client(
                 "s3",
                 region_name=self.region,
+                config=_BOTO_CONFIG,
                 **(
                     {
                         "aws_access_key_id": settings.AWS_ACCESS_KEY_ID,
@@ -59,7 +69,13 @@ class MultiS3Loader:
                 try:
                     paginator = client.get_paginator("list_objects_v2")
                     prefix_path = self.prefix + "/" if self.prefix else ""
-                    for page in paginator.paginate(Bucket=bucket, Prefix=prefix_path):
+                    paginate_kwargs = {
+                        "Bucket": bucket,
+                        "PaginationConfig": {"MaxItems": 1000},
+                    }
+                    if prefix_path:
+                        paginate_kwargs["Prefix"] = prefix_path
+                    for page in paginator.paginate(**paginate_kwargs):
                         for obj in page.get("Contents", []):
                             results.append(
                                 {

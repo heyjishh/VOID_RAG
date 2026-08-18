@@ -53,24 +53,20 @@ function highlightText(text, query) {
   )
 }
 
-export default function SourceCard({ chunk, question, rank }) {
+export default function SourceCard({ chunk, question, rank, onAction }) {
   const cardRef = useRef(null)
   const barRef = useRef(null)
   const [viewerOpen, setViewerOpen] = useState(false)
   const score = Math.max(0, Math.min(1, chunk.score ?? 0))
   const tier = relevanceTier(score)
   const scorePercent = Math.round(score * 100)
-
-  // `chunk.source` is the filename used as the display title — there's no
-  // separate `title` field on the wire. `chunk.url` (web-domain only) is the
-  // navigable identity for web sources; internal sources are opened via
-  // `chunk.source` against the /documents/view endpoint instead.
   const title = chunk.source?.split('/').pop() || chunk.source || 'Untitled passage'
   const excerpt = chunk.text || ''
   const isVerified = Boolean(chunk.verified)
   const isWeb = chunk.domain === 'web' && Boolean(chunk.url)
   const isInternal = chunk.domain === 'internal'
   const isClickable = isWeb || isInternal
+  const viewSource = isInternal ? title : (chunk.source || title)
 
   function handleHover(enter) {
     if (!cardRef.current || prefersReducedMotion()) return
@@ -100,7 +96,7 @@ export default function SourceCard({ chunk, question, rank }) {
       <Wrapper
         ref={cardRef}
         data-source-index={rank}
-        className={`doc-card block rounded-[2px] text-decoration-none ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+        className={`doc-card block rounded-[2px] text-decoration-none p-3 ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
         style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-default)',
@@ -184,7 +180,7 @@ export default function SourceCard({ chunk, question, rank }) {
           )}
         </div>
 
-        {/* Excerpt */}
+        {/* Excerpt - highlight using the citation quote if available, fallback to question */}
         <p
           className="m-0 mt-2 text-[12px] leading-relaxed pl-[26px]"
           style={{
@@ -195,13 +191,54 @@ export default function SourceCard({ chunk, question, rank }) {
             overflow: 'hidden',
           }}
         >
-          {highlightText(excerpt, question)}
+          {highlightText(excerpt, chunk.citation_quote || question)}
         </p>
+
+        {onAction && (
+          <div className="flex gap-2 mt-3 pl-[26px] flex-wrap">
+            <button
+              className="text-[10.5px] font-medium px-2 py-1 rounded-[3px] transition-colors"
+              style={{ background: 'var(--bg-soft)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)', cursor: 'pointer' }}
+              onClick={() => onAction('copy_chunk')}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.color = 'var(--text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-soft)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+            >
+              Copy chunk
+            </button>
+            <button
+              className="text-[10.5px] font-medium px-2 py-1 rounded-[3px] transition-colors"
+              style={{ background: 'var(--bg-soft)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)', cursor: 'pointer' }}
+              onClick={() => onAction('read_chunk')}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.color = 'var(--text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-soft)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+            >
+              Read chunk
+            </button>
+            <button
+              className="text-[10.5px] font-medium px-2 py-1 rounded-[3px] transition-colors"
+              style={{ background: 'var(--bg-soft)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)', cursor: 'pointer' }}
+              onClick={() => onAction('open_window')}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.color = 'var(--text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-soft)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+            >
+              Open in new window
+            </button>
+            <button
+              className="text-[10.5px] font-medium px-2 py-1 rounded-[3px] transition-colors"
+              style={{ background: 'var(--bg-soft)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)', cursor: 'pointer' }}
+              onClick={() => onAction('download')}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.color = 'var(--text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-soft)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+            >
+              Download document
+            </button>
+          </div>
+        )}
       </Wrapper>
 
       {viewerOpen && (
         <DocumentViewerModal
-          source={chunk.source}
+          source={viewSource}
           page={chunk.page}
           text={excerpt}
           onClose={() => setViewerOpen(false)}

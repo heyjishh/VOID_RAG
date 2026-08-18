@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     CONVERSATION_MAX_TURNS: int = 6        # trailing turns injected into the prompt
     CONVERSATION_TTL_SECONDS: int = 86400  # 24h
 
+    # Run storage (Valkey-backed, best-effort)
+    RUN_STORAGE_ENABLED: bool = True
+    RUN_TTL_SECONDS: int = 604800          # 7 days
+
     # Rate limiting (Valkey fixed-window, fail-open if store is down)
     RATELIMIT_ENABLED: bool = True
     RATELIMIT_MAX_REQUESTS: int = 30
@@ -115,17 +119,38 @@ class Settings(BaseSettings):
     QUICKWIT_URL: str = "http://localhost:7280"
     QUICKWIT_INDEX: str = "juryai_legal"
 
-    EMBED_MODEL: str = "BAAI/bge-small-en-v1.5"
-    RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
-    EMBED_DIM: int = 384
+    # === Superior Retrieval Stack (Option B + Legal Embedder) ===
+    # Retrieval-tuned embedder (110M params, 768 dim)
+    EMBED_MODEL: str = "BAAI/bge-base-en-v1.5"
+    EMBED_DIM: int = 768
+
+    # Small cross-encoder reranker (22M params) — distilled quality, 5x faster
+    RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L6-v2"
+    RERANKER_MAX_LENGTH: int = 512
+    RERANKER_BATCH_SIZE: int = 16
+
+    # ColBERT late interaction (optional second-stage reranker)
+    COLBERT_MODEL: str = "colbert-ir/colbertv2.0"
+    COLBERT_MAX_LENGTH: int = 180
+    COLBERT_TOP_K: int = 50
+
+    # HyDE query expansion
+    HYDE_ENABLED: bool = True
+
+    # RapidOCR for scanned PDFs
+    OCR_ENABLED: bool = True
+    OCR_DPI: int = 150
+    OCR_MIN_CHARS_PER_PAGE: int = 100
+
     EMBED_CACHE_SIZE: int = 128
 
-    # Cross-encoder token budget per (query, text) pair. The tokenizer's
-    # model default is 8192 tokens — on CPU, 8 web sources × 8k tokens took
-    # ~2 minutes of dead air. 512 tokens (~380 words) keeps ranking fidelity
-    # for legal evidence while keeping a full web_search under ~20 s.
-    RERANKER_MAX_LENGTH: int = 512
-    RERANKER_BATCH_SIZE: int = 8
+    # Per-call intra-op thread cap for torch/BLAS (legal-bert, reranker, ColBERT).
+    # Unbounded, each concurrent inference call spins up its own OpenMP thread
+    # team sized to the full core count — a handful of concurrent calls (chat +
+    # ingestion running together) multiplies into hundreds of OS threads and
+    # everything thrashes on context switches instead of computing. Low and
+    # fixed keeps total threads bounded no matter how many calls overlap.
+    ML_NUM_THREADS: int = 2
 
     # Free-LLM Gateway (24+ providers, OpenAI-compatible)
     GATEWAY_URL: str = "http://localhost:8080/v1"
@@ -135,7 +160,13 @@ class Settings(BaseSettings):
 
     # Direct provider keys (fallback if gateway is down)
     GROQ_API_KEY: Optional[str] = None
+    NVIDIA_API_KEY: Optional[str] = None
     MISTRAL_API_KEY: Optional[str] = None
+    MISTRAL_KEY: Optional[str] = None
+    GOOGLE_GEMINI_KEY: Optional[str] = None
+    SAMBANOVA_KEY: Optional[str] = None
+    CLOUDFLARE_KEY: Optional[str] = None
+    CLOUDFLARE_ACCOUNT_ID: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
 
@@ -144,6 +175,9 @@ class Settings(BaseSettings):
 
     WEB_SEARCH_MAX_RESULTS: int = 8
     WEB_SEARCH_GOVERNMENT_MAX_RESULTS: int = 5
+
+    INTERACT_MAX_UPLOAD_MB: int = 20
+    INTERACT_MAX_DOCS_PER_SESSION: int = 20
 
     # Government/judiciary domain-scoped web search pass — stored as JSON
     # string env var, parsed on load (mirrors AUTHORITY_TABLE's pattern)
@@ -210,7 +244,47 @@ class Settings(BaseSettings):
     RECENCY_UNKNOWN_DATE_SCORE: float = 0.5
     # Evidence below this final_score is dropped in merge_evidence() rather
     # than surviving purely by filling an otherwise-empty top-10 slot.
-    EVIDENCE_MIN_SCORE: float = 0.35
+    # Lowered to avoid dropping all retrieved chunks when authority scores are
+    # modest; v1 had no such floor, so we keep the bar permissive.
+    EVIDENCE_MIN_SCORE: float = 0.1
+
+    # Auto-sync: periodic background ingestion from S3 (minutes). 0 disables.
+    AUTO_SYNC_INTERVAL_MINUTES: int = 5
+
+    # Ingestion CPU governor — caps the sync's own CPU footprint so a large
+    # batch never starves chat/API request handling on the same process.
+    # The governor only ever throttles concurrency down to
+    # _INGEST_MIN_CONCURRENT, never to zero — the pipeline stays alive.
+    INGEST_CPU_BUDGET_PERCENT: float = 50.0
+    INGEST_CPU_SAMPLE_INTERVAL_SECONDS: float = 2.0
+    # How long a /ingest/status snapshot (which lists all configured S3
+    # buckets) is reused before re-listing. Decouples expensive S3 listing
+    # from how often the frontend polls, instead of a client-side promise.
+    INGEST_STATUS_CACHE_TTL_SECONDS: float = 8.0
+    # Per-file safety net only — not a run deadline. A single hung S3
+    # download/parse gets killed so it doesn't hold a concurrency slot
+    # forever; the overall sync (POST /ingest/s3) itself runs as a detached
+    # background task with no wall-clock bound, so a large batch is never
+    # cut off partway through.
+    INGEST_FILE_TIMEOUT_SECONDS: float = 300.0
+    INGEST_LIST_TIMEOUT_SECONDS: float = 120.0
+
+    # PageRank for citation graph authority scoring
+    PAGERANK_DAMPING: float = 0.85
+    PAGERANK_MAX_ITER: int = 100
+    PAGERANK_TOL: float = 1e-6
+
+    # Intent classifier threshold
+    INTENT_CLASSIFIER_THRESHOLD: float = 0.35
+
+    # Claim verification
+    CLAIM_VERIFICATION_ENABLED: bool = True
+    CLAIM_EXTRACTION_MAX_CLAIMS: int = 20
+
+    # Evaluation
+    EVAL_IOU_THRESHOLD: float = 0.5
+    EVAL_TEXT_OVERLAP_THRESHOLD: float = 0.3
+    EVAL_K_VALUES: str = "[1, 3, 5, 10, 20]"
 
     # Authority lookup table — stored as JSON string env var, parsed on load
     AUTHORITY_TABLE: dict[str, float] = Field(
@@ -248,30 +322,97 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def llm_provider_chain(self) -> list[dict]:
-        chain = []
-        # Gateway first — 260+ models, auto-fallback within gateway
+        """Direct-API provider chain, called straight over HTTP (no litellm) by
+        app.core.llm.provider. Groq first — fastest + most reliable free-tier
+        streaming path seen in practice; the local gateway and other direct
+        providers are fallbacks if Groq is unset or fails."""
+        chain: list[dict] = []
+        if self.GROQ_API_KEY:
+            chain.append({
+                "kind": "openai",
+                "provider_name": "groq",
+                "base_url": "https://api.groq.com/openai/v1",
+                "api_key": self.GROQ_API_KEY,
+                "model": "llama-3.3-70b-versatile",
+            })
+        if self.NVIDIA_API_KEY:
+            chain.append({
+                "kind": "openai",
+                "provider_name": "nvidia",
+                "base_url": "https://integrate.api.nvidia.com/v1",
+                "api_key": self.NVIDIA_API_KEY,
+                "model": "meta/llama-3.1-70b-instruct",
+            })
+        if self.MISTRAL_KEY or self.MISTRAL_API_KEY:
+            chain.append({
+                "kind": "openai",
+                "provider_name": "mistral",
+                "base_url": "https://api.mistral.ai/v1",
+                "api_key": self.MISTRAL_KEY or self.MISTRAL_API_KEY,
+                "model": "mistral-large-latest",
+            })
+        if self.GOOGLE_GEMINI_KEY:
+            chain.append({
+                "kind": "openai",
+                "provider_name": "gemini",
+                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "api_key": self.GOOGLE_GEMINI_KEY,
+                "model": "gemini-flash-latest",
+            })
+        if self.SAMBANOVA_KEY:
+            chain.append({
+                "kind": "openai",
+                "provider_name": "sambanova",
+                "base_url": "https://api.sambanova.ai/v1",
+                "api_key": self.SAMBANOVA_KEY,
+                "model": "Meta-Llama-3.3-70B-Instruct",
+            })
+        if self.CLOUDFLARE_KEY and self.CLOUDFLARE_ACCOUNT_ID:
+            chain.append({
+                "kind": "openai",
+                "provider_name": "cloudflare",
+                "base_url": f"https://api.cloudflare.com/client/v4/accounts/{self.CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+                "api_key": self.CLOUDFLARE_KEY,
+                "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            })
         if self.GATEWAY_KEY:
             chain.append({
-                "model": f"openai/{self.GATEWAY_MODEL}",
+                "kind": "openai",
+                "provider_name": "gateway",
+                "base_url": self.GATEWAY_URL,
                 "api_key": self.GATEWAY_KEY,
-                "api_base": self.GATEWAY_URL,
+                "model": self.GATEWAY_MODEL,
             })
-        # Direct providers as fallback
-        if self.GROQ_API_KEY:
-            chain.append({"model": "groq/llama-3.3-70b-versatile", "api_key": self.GROQ_API_KEY})
-        if self.MISTRAL_API_KEY:
-            chain.append({"model": "mistral/mistral-large-latest", "api_key": self.MISTRAL_API_KEY})
         if self.OPENAI_API_KEY:
-            chain.append({"model": "openai/gpt-4o-mini", "api_key": self.OPENAI_API_KEY})
+            chain.append({
+                "kind": "openai",
+                "provider_name": "openai",
+                "base_url": "https://api.openai.com/v1",
+                "api_key": self.OPENAI_API_KEY,
+                "model": "gpt-4o-mini",
+            })
         if self.ANTHROPIC_API_KEY:
-            chain.append({"model": "anthropic/claude-3-5-haiku-20241022", "api_key": self.ANTHROPIC_API_KEY})
+            chain.append({
+                "kind": "anthropic",
+                "provider_name": "anthropic",
+                "api_key": self.ANTHROPIC_API_KEY,
+                "model": "claude-3-5-haiku-20241022",
+            })
         if not chain:
-            chain.append({"model": "ollama/llama3.2", "api_key": ""})
+            chain.append({
+                "kind": "openai",
+                "provider_name": "ollama",
+                "base_url": "http://localhost:11434/v1",
+                "api_key": "",
+                "model": "llama3.2",
+            })
         return chain
 
     @computed_field
     @property
     def web_search_provider(self) -> str:
+        if self.WIGOLO_ENABLED:
+            return "wigolo"
         if self.TAVILY_API_KEY:
             return "tavily"
         if self.BRAVE_SEARCH_API_KEY:

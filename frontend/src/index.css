@@ -220,8 +220,18 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+html {
+  /* One layout bug in any panel shouldn't hand the whole app a horizontal
+     scrollbar — the fixed-width side panels below md are the most likely
+     source, so this is the backstop, not the fix. */
+  overflow-x: hidden;
+  width: 100%;
+}
+
 body {
   margin: 0;
+  width: 100%;
+  min-height: 100dvh;
   background:
     radial-gradient(at 18% -5%, var(--wash-1) 0%, transparent 45%),
     radial-gradient(at 85% 25%, var(--wash-2) 0%, transparent 40%),
@@ -234,6 +244,12 @@ body {
   text-rendering: optimizeLegibility;
   font-variant-numeric: tabular-nums;
   transition: background-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+
+#root {
+  /* App shells below use h-screen; 100dvh (not vh) keeps the layout honest
+     on mobile Safari/Chrome, where the address bar resizes the viewport. */
+  min-height: 100dvh;
 }
 
 /* ─── Docket surfaces — flat panels, hard hairline bone borders ───────────── */
@@ -355,6 +371,25 @@ button:not(:disabled):active {
   50%       { transform: translateY(-5px); }
 }
 
+/* Streaming answer caret — active-writing cue distinct from the gold
+   "drafting" bounce-dots, so the two streaming signals read differently. */
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--primary);
+  border-radius: 1px;
+}
+.stream-caret-blink {
+  animation: stream-blink 0.9s step-end infinite;
+}
+@keyframes stream-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
@@ -439,6 +474,86 @@ button:not(:disabled):active {
 .prose-md a { color: var(--primary); text-decoration: underline; }
 .prose-md a:hover { color: var(--primary-hover); }
 .prose-md hr { border: none; border-top: 1px solid var(--border-default); margin: 0.8em 0; }
+
+.creac-body h2, .creac-body h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0.9em 0 0.4em;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+.creac-body h2 { font-size: 1.22em; }
+.creac-body h3 { font-size: 1.06em; }
+.creac-body .creac-section {
+  margin-top: 1.1em;
+  padding-top: 0.6em;
+  border-top: 1px solid var(--border-default);
+}
+.creac-body .creac-section:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+.creac-body .creac-subsection {
+  margin-left: 0.6em;
+  padding-left: 0.6em;
+  border-left: 2px solid var(--border-default);
+}
+.creac-body .judicial-quote {
+  border-left: 3px solid var(--gold);
+  margin: 0.7em 0;
+  padding: 0.5em 1em;
+  color: var(--text-secondary);
+  background: var(--gold-light);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-style: italic;
+}
+.creac-body .table-wrap {
+  position: relative;
+  margin: 0.7em 0;
+  overflow-x: auto;
+}
+.creac-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+.creac-body th, .creac-body td {
+  padding: 0.45em 0.7em;
+  border-bottom: 1px solid var(--border-default);
+  text-align: left;
+  vertical-align: top;
+}
+.creac-body th {
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.creac-body tr:last-child td { border-bottom: none; }
+.table-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+}
+.table-copy-btn:hover {
+  background: var(--bg-soft);
+  color: var(--text-primary);
+}
 
 /* ─── Utility ───────────────────────────────────────────────────────────── */
 .font-display {

@@ -20,21 +20,27 @@ logger = logging.getLogger("juryai.cache")
 _KEY_PREFIX = "juryai:answer"
 
 
-def _make_key(question: str, use_web_search: bool, scope: str) -> str:
+def _make_key(question: str, use_web_search: bool, scope: str, sources: Optional[list[str]] = None) -> str:
     """Deterministic cache key from a normalized question + flags.
+
+    `sources` must be part of the key — the same question scoped to a
+    different set of source documents is a different query and must never
+    reuse an unfiltered (or differently-filtered) cached answer. Sorted so
+    selection order doesn't fragment the cache.
 
     ponytail: exact-normalized match (case/whitespace-insensitive). Add an
     embedding-keyed semantic cache when near-duplicate phrasings must also hit —
     bigger latency win, but needs the embedder in the hot path.
     """
     norm = " ".join((question or "").strip().lower().split())
-    raw = f"{norm}|web={int(bool(use_web_search))}"
+    sources_key = ",".join(sorted(sources)) if sources else ""
+    raw = f"{norm}|web={int(bool(use_web_search))}|sources={sources_key}"
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return f"{_KEY_PREFIX}:{scope}:{digest}"
 
 
 async def answer_cache_get(
-    question: str, use_web_search: bool, scope: str = "chat"
+    question: str, use_web_search: bool, scope: str = "chat", sources: Optional[list[str]] = None
 ) -> Optional[dict]:
     """Return a cached answer payload, or None on miss/unavailable."""
     if not settings.ANSWER_CACHE_ENABLED or valkey.breaker_open():
@@ -43,7 +49,7 @@ async def answer_cache_get(
     if client is None:
         return None
     try:
-        raw = await client.get(_make_key(question, use_web_search, scope))
+        raw = await client.get(_make_key(question, use_web_search, scope, sources))
         return json.loads(raw) if raw else None
     except Exception as exc:  # noqa: BLE001 — miss on any failure
         logger.warning("answer cache get failed; opening breaker: %s", exc)
@@ -52,7 +58,7 @@ async def answer_cache_get(
 
 
 async def answer_cache_set(
-    question: str, use_web_search: bool, payload: dict, scope: str = "chat"
+    question: str, use_web_search: bool, payload: dict, scope: str = "chat", sources: Optional[list[str]] = None
 ) -> None:
     """Store an answer payload with the configured TTL. Best-effort."""
     if not settings.ANSWER_CACHE_ENABLED or valkey.breaker_open():
@@ -62,7 +68,7 @@ async def answer_cache_set(
         return
     try:
         await client.set(
-            _make_key(question, use_web_search, scope),
+            _make_key(question, use_web_search, scope, sources),
             json.dumps(payload, default=str),
             ex=settings.CACHE_TTL_SECONDS,
         )

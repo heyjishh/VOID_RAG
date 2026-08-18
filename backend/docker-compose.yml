@@ -1,111 +1,250 @@
-# ============================================================================
-# JURYAI Backend Docker Compose
-# Full stack: Qdrant + Quickwit + Valkey + FastAPI backend + React frontend
-# ============================================================================
+version: '3.8'
 
 services:
-  # --- Infrastructure -------------------------------------------------------
-
-  qdrant:
-    image: qdrant/qdrant:v1.9.7
-    ports:
-      - "127.0.0.1:6333:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    networks:
-      - juryai
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /livez HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && read -r line <&3 && echo $$line | grep -q 200'"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  quickwit:
-    image: quickwit/quickwit:0.8.0
-    command: ["run"]
+  # PostgreSQL for audit logs and metadata
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: voidrag-postgres
     environment:
-      QW_ENABLE_OPENTELEMETRY_OTLP_EXPORTER: "false"
-    ports:
-      - "127.0.0.1:7280:7280"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: juryai
     volumes:
-      - quickwit_data:/quickwit/qwdata
-    networks:
-      - juryai
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/7280' 2>/dev/null && echo ok || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d juryai"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - voidrag-network
+    restart: unless-stopped
 
+  # Valkey (Redis-compatible) for caching, rate limiting, sessions
   valkey:
     image: valkey/valkey:8-alpine
-    command: ["valkey-server", "--save", "60", "1", "--appendonly", "no"]
-    ports:
-      - "127.0.0.1:6379:6379"
+    container_name: voidrag-valkey
+    command: valkey-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - valkey_data:/data
-    networks:
-      - juryai
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - voidrag-network
+    restart: unless-stopped
 
-  # --- Application ----------------------------------------------------------
+  # Qdrant vector database
+  qdrant:
+    image: qdrant/qdrant:v1.11.0
+    container_name: voidrag-qdrant
+    volumes:
+      - qdrant_data:/qdrant/storage
+      - ./qdrant-config:/qdrant/config
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - voidrag-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
 
+  # Quickwit for BM25/full-text search
+  quickwit:
+    image: quickwit/quickwit:0.8.0
+    container_name: voidrag-quickwit
+    command: run --config /quickwit-config/quickwit.yaml
+    volumes:
+      - quickwit_data:/quickwit
+      - ./quickwit-config:/quickwit-config
+    ports:
+      - "7280:7280"
+      - "7281:7281"
+    environment:
+      QW_CONFIG_FILE: /quickwit-config/quickwit.yaml
+      QW_METASTORE_URI: file:///quickwit/qwmeta
+      QW_INDEX_ROOT_URI: file:///quickwit/qwindex
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7280/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - voidrag-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # Lightpanda for web scraping (headless browser)
+  lightpanda:
+    image: lightpanda/lightpanda:latest
+    container_name: voidrag-lightpanda
+    command: lightpanda --port 9222 --host 0.0.0.0
+    ports:
+      - "9222:9222"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9222/json/version"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+    networks:
+      - voidrag-network
+    restart: unless-stopped
+
+  # Backend API
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "127.0.0.1:8100:8100"
-    env_file:
-      - .env
+    container_name: voidrag-backend
     environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - QUICKWIT_HOST=quickwit
-      - QUICKWIT_PORT=7280
-      - VALKEY_HOST=valkey
-      - VALKEY_PORT=6379
-      - GATEWAY_URL=http://host.docker.internal:8080/v1
+      # Database
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: juryai
+      POSTGRES_SCHEMA: juryai
+      
+      # Valkey
+      VALKEY_URL: redis://valkey:6379/1
+      
+      # Qdrant
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: juryai_legal
+      
+      # Quickwit
+      QUICKWIT_URL: http://quickwit:7280
+      QUICKWIT_INDEX: juryai_legal
+      
+      # Lightpanda
+      LIGHTPANDA_BINARY: lightpanda
+      LIGHTPANDA_PORT: 9222
+      WIGOLO_URL: http://lightpanda:9222
+      
+      # Models (will be downloaded on first run)
+      EMBED_MODEL: nlpaueb/legal-bert-base-uncased
+      RERANKER_MODEL: cross-encoder/ms-marco-MiniLM-L6-v2
+      COLBERT_MODEL: colbert-ir/colbertv2.0
+      
+      # Feature flags
+      HYDE_ENABLED: "true"
+      OCR_ENABLED: "true"
+      VERIFIER_GATE_ENABLED: "true"
+      CLAIM_VERIFICATION_ENABLED: "true"
+      
+      # Retrieval settings
+      TOP_K_RETRIEVE: 20
+      TOP_K_FINAL: 10
+      RERANKER_MAX_LENGTH: 512
+      RERANKER_BATCH_SIZE: 8
+      COLBERT_TOP_K: 50
+      COLBERT_MAX_LENGTH: 180
+      
+      # Authority scoring
+      AUTHORITY_SCORE_ALPHA: 0.50
+      AUTHORITY_SCORE_BETA: 0.25
+      AUTHORITY_SCORE_GAMMA: 0.15
+      AUTHORITY_SCORE_DELTA: 0.10
+      RECENCY_DECAY_LAMBDA: 0.05
+      PAGERANK_DAMPING: 0.85
+      
+      # Evaluation
+      EVAL_IOU_THRESHOLD: 0.5
+      EVAL_TEXT_OVERLAP_THRESHOLD: 0.3
+      
+      # AWS/S3 (configure as needed)
+      AWS_REGION: ap-south-1
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      S3_BUCKET_NAMES: ${S3_BUCKET_NAMES:-}
+      S3_DOCUMENT_PREFIX: documents
+      
+      # LLM Gateway (optional)
+      GATEWAY_URL: ${GATEWAY_URL:-http://host.docker.internal:8080/v1}
+      GATEWAY_KEY: ${GATEWAY_KEY:-}
+      GATEWAY_MODEL: llama-3.3-70b
+      
+      # Direct LLM providers (fallback)
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      
+      # Web search
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      WEB_SEARCH_MAX_RESULTS: 8
+      
+      # Security
+      SECRET_KEY: ${SECRET_KEY:-changeme-in-production}
+      AUTH_DEV_RETURN_OTP: "true"
+      
+      # Python
+      PYTHONUNBUFFERED: 1
+      PYTHONDONTWRITEBYTECODE: 1
+      
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app:ro
+      - ./alembic:/app/alembic:ro
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - model_cache:/root/.cache/huggingface
+      - document_cache:/tmp/juryai-document-cache
+      - session_store:/tmp/juryai-session-docs
     depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
       qdrant:
         condition: service_healthy
       quickwit:
         condition: service_healthy
-      valkey:
-        condition: service_healthy
     networks:
-      - juryai
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8100/health')\""]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
-    ports:
-      - "127.0.0.1:5174:5174"
-    environment:
-      - VITE_API_URL=http://localhost:8100
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - juryai
-
-networks:
-  juryai:
-    driver: bridge
+      - voidrag-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 4G
 
 volumes:
+  postgres_data:
+  valkey_data:
   qdrant_data:
   quickwit_data:
-  valkey_data:
+  model_cache:
+  document_cache:
+  session_store:
+
+networks:
+  voidrag-network:
+    driver: bridge

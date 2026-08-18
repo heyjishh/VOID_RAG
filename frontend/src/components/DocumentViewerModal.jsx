@@ -121,6 +121,21 @@ export default function DocumentViewerModal({ source, page, text, onClose }) {
   const [notFound, setNotFound] = useState(false)
   const modalRef = useRef(null)
   const pageWrapRef = useRef(null)
+  const contentRef = useRef(null)
+  // A fixed 640px PDF render width overflows the modal once it's narrower
+  // than that (any phone, most tablets in portrait) — track the actual
+  // available width and never render wider than it.
+  const [pageWidth, setPageWidth] = useState(PAGE_WIDTH)
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const update = () => setPageWidth(Math.min(PAGE_WIDTH, el.clientWidth - 32))
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     let objectUrl
@@ -199,14 +214,29 @@ export default function DocumentViewerModal({ source, page, text, onClose }) {
 
     const { full, spanRanges } = buildTextMap(spans)
     const { normalized: fullNorm, map } = collapseWs(full)
-    const anchorNorm = collapseWs(highlightAnchor).normalized.trim()
-    if (!anchorNorm) return
 
-    const idx = fullNorm.indexOf(anchorNorm)
+    let anchorNorm = collapseWs(highlightAnchor).normalized.trim()
+    let idx = fullNorm.indexOf(anchorNorm)
+    let anchorLen = anchorNorm.length
+
+    if (idx === -1) {
+      const tries = [Math.min(anchorLen, 120), Math.min(anchorLen, 60), Math.min(anchorLen, 30), Math.min(anchorLen, 15)]
+      for (const len of tries) {
+        if (len <= 0) break
+        const candidate = anchorNorm.slice(0, len).trim()
+        if (!candidate) continue
+        idx = fullNorm.indexOf(candidate)
+        if (idx !== -1) {
+          anchorLen = candidate.length
+          break
+        }
+      }
+    }
+
     if (idx === -1) { setNotFound(true); return }
 
     const origStart = map[idx]
-    const origEnd = map[Math.min(idx + anchorNorm.length - 1, map.length - 1)] + 1
+    const origEnd = map[Math.min(idx + anchorLen - 1, map.length - 1)] + 1
     const matched = spanRanges.filter(r => r.end > origStart && r.start < origEnd).map(r => r.el)
 
     matched.forEach(el => {
@@ -278,7 +308,7 @@ export default function DocumentViewerModal({ source, page, text, onClose }) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto flex flex-col items-center p-4 gap-2" style={{ background: 'var(--bg-soft)' }}>
+        <div ref={contentRef} className="flex-1 overflow-auto flex flex-col items-center p-4 gap-2" style={{ background: 'var(--bg-soft)' }}>
           {(loadError || timedOut) && (
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
               <MutedNote>
@@ -299,7 +329,7 @@ export default function DocumentViewerModal({ source, page, text, onClose }) {
               >
                 <Page
                   pageNumber={pageNumber}
-                  width={PAGE_WIDTH}
+                  width={pageWidth}
                   renderAnnotationLayer={false}
                   onRenderTextLayerSuccess={handleTextLayerRendered}
                   loading={<MutedNote>Rendering page…</MutedNote>}

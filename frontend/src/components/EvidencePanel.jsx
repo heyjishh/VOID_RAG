@@ -56,7 +56,7 @@ const FILTERS = [
   { id: 'verified', label: 'Verified' },
 ]
 
-export default function EvidencePanel({ chunks = [], question = '', isLoading = false, collapsed = false, verification = null }) {
+export default function EvidencePanel({ chunks = [], question = '', isLoading = false, collapsed = false, verification = null, overlay = false, onRequestClose }) {
   const containerRef = useRef(null)
   const prevChunksRef = useRef([])
   const [filter, setFilter] = useState('all')
@@ -85,19 +85,36 @@ export default function EvidencePanel({ chunks = [], question = '', isLoading = 
     : chunks.filter(c => (filter === 'cited' ? c.cited : c.verified))
 
   return (
-    <aside
-      className="flex flex-col overflow-hidden flex-shrink-0"
-      style={{
-        width: collapsed ? '0' : '380px',
-        minWidth: 0,
-        transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-        willChange: 'width',
-        borderLeft: collapsed ? 'none' : '1px solid var(--border-default)',
-        background: 'var(--bg-soft)',
-        backdropFilter: 'blur(24px) saturate(160%)',
-        WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-      }}
-    >
+    <>
+      {/* Below the desktop breakpoint this panel slides over the content
+          instead of squeezing it — 380px pushed against a phone viewport
+          would leave no room for the chat underneath it. */}
+      {overlay && !collapsed && (
+        <div
+          className="fixed inset-0 z-30"
+          style={{ background: 'var(--overlay-scrim)' }}
+          onClick={onRequestClose}
+        />
+      )}
+      <aside
+        className="flex flex-col overflow-hidden flex-shrink-0"
+        style={{
+          // The viewport cap is a separate, non-animated maxWidth rather
+          // than folded into the transitioning width itself — animating
+          // width to/from a min()-computed value renders as 1px in some
+          // engines, since it can't resolve the function mid-interpolation.
+          width: collapsed ? '0' : '380px',
+          maxWidth: overlay ? '88vw' : undefined,
+          minWidth: 0,
+          transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          willChange: 'width',
+          borderLeft: collapsed ? 'none' : '1px solid var(--border-default)',
+          background: 'var(--bg-soft)',
+          backdropFilter: 'blur(24px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+          ...(overlay ? { position: 'fixed', insetBlock: 0, right: 0, zIndex: 35, boxShadow: collapsed ? 'none' : 'var(--shadow-panel)' } : {}),
+        }}
+      >
       {/* Panel header */}
       <div className="flex items-center gap-2.5 px-3.5 h-[52px] flex-shrink-0" style={{ borderBottom: '1px solid var(--border-default)', background: 'var(--bg-card)' }}>
         <ScrollText size={15} style={{ color: 'var(--gold)' }} />
@@ -182,6 +199,7 @@ export default function EvidencePanel({ chunks = [], question = '', isLoading = 
           </div>
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   )
 }

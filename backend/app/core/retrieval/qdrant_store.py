@@ -2,7 +2,7 @@ from __future__ import annotations
 import uuid
 from typing import TypedDict
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchAny
 from app.config.settings import settings
 from app.core.retrieval.embedder import get_embedder
 from app.core.retrieval.source_type import detect_source_type
@@ -34,11 +34,31 @@ class QdrantStore:
         self._ensure_collection()
 
     def _ensure_collection(self):
+        expected_size = self._embedder.dimension
+        if self._client.collection_exists(self.collection):
+            existing = self._client.get_collection(self.collection)
+            actual_size = getattr(existing.config.params.vectors, "size", None)
+            if actual_size != expected_size:
+                import logging
+                logging.getLogger("juryai").warning(
+                    "Qdrant collection %r has wrong vector size %s; expected %s. Recreating.",
+                    self.collection, actual_size, expected_size,
+                )
+                self._client.delete_collection(self.collection)
+                self._clear_manifest()
         if not self._client.collection_exists(self.collection):
             self._client.create_collection(
                 collection_name=self.collection,
-                vectors_config=VectorParams(size=settings.EMBED_DIM, distance=Distance.COSINE),
+                vectors_config=VectorParams(size=expected_size, distance=Distance.COSINE),
             )
+
+    @staticmethod
+    def _clear_manifest():
+        try:
+            from app.core.ingestion.manifest import Manifest
+            Manifest().clear()
+        except Exception:
+            pass
 
     def upsert(self, chunks: list[Chunk]) -> int:
         if not chunks:
@@ -46,7 +66,10 @@ class QdrantStore:
         vecs = self._embedder.embed([c["text"] for c in chunks])
         points = [
             PointStruct(
-                id=str(uuid.uuid4()),
+                # Content-addressed, not random — re-ingesting the same source
+                # (a killed/resumed sync, a re-run over unchanged S3 keys)
+                # overwrites the same point instead of piling up duplicates.
+                id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{c['source']}|{c['page']}|{c['text']}")),
                 vector=vec,
                 payload={"text": c["text"], "source": c["source"], "page": c["page"]},
             )
@@ -55,10 +78,17 @@ class QdrantStore:
         self._client.upsert(collection_name=self.collection, points=points)
         return len(points)
 
-    def search(self, query_vec: list[float], top_k: int = 20) -> list[ScoredChunk]:
+    def search(
+        self, query_vec: list[float], top_k: int = 20, source_filter: list[str] | None = None
+    ) -> list[ScoredChunk]:
+        query_filter = (
+            Filter(must=[FieldCondition(key="source", match=MatchAny(any=source_filter))])
+            if source_filter else None
+        )
         results = self._client.query_points(
             collection_name=self.collection,
             query=query_vec,
+            query_filter=query_filter,
             limit=top_k,
             with_payload=True,
         )

@@ -101,6 +101,13 @@ class JuryAIState(TypedDict):
     # session_id is required when mode == "interact".
     mode: NotRequired[str]
     session_id: NotRequired[Optional[str]]
+    # Source filenames to scope legal_retrieve_node's search to — None/empty
+    # searches the full corpus (unchanged default behavior).
+    source_filter: NotRequired[Optional[list[str]]]
+    # "As of" date (free text, e.g. "2023-05-01" or "before 1 July 2024") the
+    # user is asking about — generate_answer_node tells the LLM to apply the
+    # law as it stood then instead of today's version. None = today.
+    as_of_date: NotRequired[Optional[str]]
     # Per-request live step sink (never cached on the compiled graph — set fresh
     # in _stream_generator so concurrent requests don't cross-talk on one callback).
     on_step: NotRequired[Callable[[ReasoningStep], None]]

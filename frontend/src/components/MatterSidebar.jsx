@@ -12,7 +12,7 @@ function formatTimestamp(ms) {
   return date.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export default function MatterSidebar({ conversations, activeId, onSelect, onNew, onDelete, collapsed }) {
+export default function MatterSidebar({ conversations, activeId, onSelect, onNew, onDelete, collapsed, overlay, onRequestClose }) {
   const listRef = useRef(null)
   const [query, setQuery] = useState('')
 
@@ -28,19 +28,36 @@ export default function MatterSidebar({ conversations, activeId, onSelect, onNew
     : conversations
 
   return (
-    <aside
-      className="flex flex-col overflow-hidden flex-shrink-0"
-      style={{
-        width: collapsed ? '0' : '272px',
-        minWidth: 0,
-        transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-        willChange: 'width',
-        borderRight: collapsed ? 'none' : '1px solid var(--border-default)',
-        background: 'var(--bg-soft)',
-        backdropFilter: 'blur(24px) saturate(160%)',
-        WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-      }}
-    >
+    <>
+      {/* Below the desktop breakpoint this panel slides over the content
+          instead of squeezing it — 272px pushed against a ~375px phone
+          viewport would leave no room for the chat underneath it. */}
+      {overlay && !collapsed && (
+        <div
+          className="fixed inset-0 z-30"
+          style={{ background: 'var(--overlay-scrim)' }}
+          onClick={onRequestClose}
+        />
+      )}
+      <aside
+        className="flex flex-col overflow-hidden flex-shrink-0"
+        style={{
+          // The viewport cap is a separate, non-animated maxWidth rather
+          // than folded into the transitioning width itself — animating
+          // width to/from a min()-computed value renders as 1px in some
+          // engines, since it can't resolve the function mid-interpolation.
+          width: collapsed ? '0' : '272px',
+          maxWidth: overlay ? '82vw' : undefined,
+          minWidth: 0,
+          transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          willChange: 'width',
+          borderRight: collapsed ? 'none' : '1px solid var(--border-default)',
+          background: 'var(--bg-soft)',
+          backdropFilter: 'blur(24px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+          ...(overlay ? { position: 'fixed', insetBlock: 0, left: 0, zIndex: 35, boxShadow: collapsed ? 'none' : 'var(--shadow-panel)' } : {}),
+        }}
+      >
       {/* Panel header */}
       <div className="px-3.5 pt-3.5 pb-2.5 flex-shrink-0" style={{ background: 'var(--bg-soft)' }}>
         <div className="flex items-center gap-2 mb-2.5">
@@ -138,7 +155,7 @@ export default function MatterSidebar({ conversations, activeId, onSelect, onNew
               <button
                 onClick={e => { e.stopPropagation(); onDelete(conv.id) }}
                 title="Delete matter"
-                className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-6 h-6 rounded-[5px] flex items-center justify-center transition-colors"
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 flex-shrink-0 w-6 h-6 rounded-[5px] flex items-center justify-center transition-colors"
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-error-bg)'; e.currentTarget.style.color = 'var(--color-error)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' }}
@@ -149,6 +166,7 @@ export default function MatterSidebar({ conversations, activeId, onSelect, onNew
           )
         })}
       </div>
-    </aside>
+      </aside>
+    </>
   )
 }

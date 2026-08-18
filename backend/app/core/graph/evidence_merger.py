@@ -12,6 +12,8 @@ _AUTHORITATIVE_WEB_TYPES: frozenset[str] = frozenset({
     "supreme_court_judgment",
     "statute",
     "constitutional",
+    "government_notification",
+    "high_court_judgment",
 })
 
 

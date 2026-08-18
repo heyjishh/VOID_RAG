@@ -1,0 +1,11 @@
+version: 0.8
+
+node_id: quickwit-node-1
+
+metastore_uri: "file:///quickwit/qwmeta"
+
+default_index_root_uri: "file:///quickwit/qwindex"
+
+rest_listen_port: 7280
+
+grpc_listen_port: 7281

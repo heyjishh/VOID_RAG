@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import gsap from 'gsap'
-import { BookOpen, Wand2 } from 'lucide-react'
-import { streamChat } from '../lib/api.js'
-import { deriveTitle, upsertConversation } from '../lib/conversationStore.js'
+import { BookOpen, Wand2, Sparkles, ChevronDown, Paperclip, X } from 'lucide-react'
+import { streamChat, analyzeQuestion, improveQuestion, interactApi } from '../lib/api.js'
+import { deriveTitle, upsertConversation, listConversations } from '../lib/conversationStore.js'
 import { refineDraft } from '../lib/refinePrompt.js'
 import { deriveFollowups } from '../lib/followups.js'
 import { prefersReducedMotion } from '../lib/motion.js'
@@ -11,6 +11,7 @@ import MessageBubble from './MessageBubble.jsx'
 import ReasoningTimeline from './ReasoningTimeline.jsx'
 import PromptLibrary from './PromptLibrary.jsx'
 import FollowUpSuggestions from './FollowUpSuggestions.jsx'
+import SourcePicker from './SourcePicker.jsx'
 
 const SUGGESTION_CHIPS = [
   'Punishment under Section 302 IPC?',
@@ -20,10 +21,10 @@ const SUGGESTION_CHIPS = [
 ]
 
 export default function ChatPanel({
+  mode = 'ask',
   onNewSources,
   onLoading,
   useWebSearch,
-  onToggleWebSearch,
   initialConversationId = null,
   initialMessages = [],
   initialQuestion = null,
@@ -32,15 +33,79 @@ export default function ChatPanel({
   const [messages, setMessages] = useState(initialMessages)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [convId, setConvId] = useState(initialConversationId)
+  const [convId, setConvId] = useState(() => initialConversationId || (mode === 'interact' ? crypto.randomUUID() : null))
   const [reasoningSteps, setReasoningSteps] = useState([])
   const [reasoningExpanded, setReasoningExpanded] = useState(true)
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false)
+  const [outputFormat, setOutputFormat] = useState('CREAC')
+  const [selectedSources, setSelectedSources] = useState([])
+  const [queryAnalysis, setQueryAnalysis] = useState(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
+  const [attachedFiles, setAttachedFiles] = useState([])
+  const [reusePicker, setReusePicker] = useState(false)
+  const [reuseSourceId, setReuseSourceId] = useState(null)
+  const [reuseDocs, setReuseDocs] = useState([])
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const fileInputRef = useRef(null)
   const autoRanRef = useRef(false)
   const messagesRef = useRef(messages)
   useEffect(() => { messagesRef.current = messages }, [messages])
+
+  useEffect(() => {
+    if (mode !== 'interact' || !convId) return
+    interactApi.listDocuments(convId)
+      .then(res => setAttachedFiles(res.documents || []))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleFileSelected(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    interactApi.uploadDocument(convId, file)
+      .then(res => setAttachedFiles(prev => [...prev, res.document]))
+      .catch(() => {})
+    setAttachMenuOpen(false)
+  }
+
+  function handleRemoveFile(fileHash) {
+    setAttachedFiles(prev => prev.filter(d => d.file_hash !== fileHash))
+    interactApi.deleteDocument(convId, fileHash).catch(() => {})
+  }
+
+  function openReusePicker() {
+    setReusePicker(true)
+    setReuseSourceId(null)
+    setReuseDocs([])
+  }
+
+  function handlePickReuseSource(sourceId) {
+    setReuseSourceId(sourceId)
+    interactApi.listDocuments(sourceId)
+      .then(res => setReuseDocs(res.documents || []))
+      .catch(() => setReuseDocs([]))
+  }
+
+  function handleBackToSources() {
+    setReuseSourceId(null)
+    setReuseDocs([])
+  }
+
+  function handleReuseDocument(fileHash) {
+    interactApi.reuseDocument(convId, reuseSourceId, fileHash)
+      .then(res => setAttachedFiles(prev => [...prev, res.document]))
+      .catch(() => {})
+    setAttachMenuOpen(false)
+    setReusePicker(false)
+  }
+
+  function closeAttachMenu() {
+    setAttachMenuOpen(false)
+    setReusePicker(false)
+  }
 
   function persist(finalMessages, id) {
     if (!onPersist || !id) return
@@ -58,6 +123,37 @@ export default function ChatPanel({
     if (!input.trim()) return
     setInput(refineDraft(input))
     inputRef.current?.focus()
+  }
+
+  async function handleAnalyze() {
+    if (!input.trim() || analyzing) return
+    setAnalyzing(true)
+    setQueryAnalysis(null)
+    try {
+      const data = await analyzeQuestion(input.trim())
+      setQueryAnalysis(data)
+    } catch (err) {
+      console.error('Analysis failed:', err)
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  async function handleImprove() {
+    if (!input.trim() || analyzing) return
+    setAnalyzing(true)
+    setQueryAnalysis(null)
+    try {
+      const data = await improveQuestion(input.trim())
+      if (data.improved_question && data.improved_question !== input.trim()) {
+        setInput(data.improved_question)
+      }
+      setQueryAnalysis(data.analysis || data)
+    } catch (err) {
+      console.error('Improve failed:', err)
+    } finally {
+      setAnalyzing(false)
+    }
   }
 
   function handleInsertTemplate(template) {
@@ -164,6 +260,7 @@ export default function ChatPanel({
             verification: resolvedVerification,
             reasoning_steps: accumulatedSteps,
             question: q,
+            conversation_id: resolvedConvId,
           }
         }
         setMessages(msgs)
@@ -189,7 +286,7 @@ export default function ChatPanel({
     }
 
     try {
-      await streamChat(q, convId, useWebSearch, callbacks)
+      await streamChat(q, convId, useWebSearch, callbacks, outputFormat, selectedSources, mode, mode === 'interact' ? convId : null)
     } catch (err) {
       callbacks.onError(err)
     } finally {
@@ -203,7 +300,7 @@ export default function ChatPanel({
     <div className="flex-1 flex flex-col overflow-hidden min-w-0">
       {/* Messages area */}
       <div
-        className="flex-1 overflow-y-auto px-8 py-6 flex flex-col gap-4"
+        className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-4"
       >
         {/* Empty state */}
         {messages.length === 0 && (
@@ -246,7 +343,7 @@ export default function ChatPanel({
               ))}
             </div>
 
-            <div className="flex items-center gap-4 mt-4" style={{ color: 'var(--text-muted)' }}>
+            <div className="flex items-center gap-4 flex-wrap justify-center mt-4" style={{ color: 'var(--text-muted)' }}>
               {[
                 { n: '1', t: 'Ask' },
                 { n: '2', t: 'Review evidence' },
@@ -305,7 +402,7 @@ export default function ChatPanel({
 
       {/* Input bar */}
       <div
-        className="px-8 pt-4 pb-5 flex-shrink-0"
+        className="px-4 sm:px-6 lg:px-8 pt-4 pb-5 flex-shrink-0"
         style={{
           borderTop: '1px solid var(--border-default)',
           background: 'var(--bg-card)',
@@ -313,81 +410,164 @@ export default function ChatPanel({
           WebkitBackdropFilter: 'blur(24px) saturate(160%)',
         }}
       >
-        {/* Web search toggle */}
-        <div className="flex items-center gap-2 mb-3">
-          <label className="flex items-center gap-2.5 cursor-pointer select-none">
-            <div className="relative">
-              <input
-                type="checkbox"
-                className="sr-only"
-                checked={useWebSearch || false}
-                onChange={onToggleWebSearch}
-              />
-              <div
-                className="w-8 h-[18px] rounded-full transition-colors duration-200"
-                style={{ background: useWebSearch ? 'var(--ink)' : 'var(--border-input)' }}
-              >
-                <div
-                  className="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform duration-200"
-                  style={{ transform: useWebSearch ? 'translateX(14px)' : 'translateX(0)' }}
+        {/* Input form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+          {/* Query analysis banner */}
+          {queryAnalysis && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-[var(--radius-sm)]" style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-default)' }}>
+              <Sparkles size={14} style={{ color: 'var(--ink)', marginTop: 2 }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>Prompt score: {queryAnalysis.score || queryAnalysis.analysis?.score || 5}/10</span>
+                </div>
+                {queryAnalysis.improvement_reason && (
+                  <p className="text-[11px] mb-1" style={{ color: 'var(--text-secondary)' }}>{queryAnalysis.improvement_reason}</p>
+                )}
+                {(queryAnalysis.suggested_rewrite || queryAnalysis.analysis?.suggested_rewrite) && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10.5px] font-medium px-2 py-0.5 rounded-[3px]" style={{ background: 'var(--ink-light)', color: 'var(--ink)' }}>Improved rewrite</span>
+                    <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{queryAnalysis.suggested_rewrite || queryAnalysis.analysis?.suggested_rewrite}</span>
+                    <button type="button" onClick={handleImprove} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-[3px]" style={{ background: 'var(--primary)', color: 'var(--on-primary)', border: 'none', cursor: 'pointer' }}>Apply</button>
+                  </div>
+                )}
+              </div>
+              <button type="button" onClick={() => setQueryAnalysis(null)} className="text-[10px]" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+            </div>
+          )}
+
+          {/* Below `sm`, the toolbar+select+submit row has nowhere near enough
+              width next to a usable input — stack input above controls
+              instead of letting five fixed-width elements fight for 375px. */}
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:items-center">
+            <div className="flex gap-2.5 items-center sm:flex-1 sm:min-w-0">
+              <div className="relative flex-shrink-0 flex gap-1">
+                <ToolbarIconButton
+                  title="Skills · Prompt library"
+                  active={promptLibraryOpen}
+                  onClick={() => setPromptLibraryOpen(v => !v)}
+                >
+                  <BookOpen size={15} />
+                </ToolbarIconButton>
+                <ToolbarIconButton
+                  title="Refine this draft"
+                  disabled={!input.trim()}
+                  onClick={handleRefineDraft}
+                >
+                  <Wand2 size={15} />
+                </ToolbarIconButton>
+                <ToolbarIconButton
+                  title="Analyze prompt quality"
+                  disabled={!input.trim() || analyzing}
+                  onClick={handleAnalyze}
+                >
+                  <Sparkles size={15} />
+                </ToolbarIconButton>
+                {mode === 'interact' && (
+                  <ToolbarIconButton
+                    title="Attach document"
+                    active={attachMenuOpen}
+                    onClick={() => setAttachMenuOpen(v => !v)}
+                  >
+                    <Paperclip size={15} />
+                  </ToolbarIconButton>
+                )}
+                {promptLibraryOpen && (
+                  <PromptLibrary onSelect={handleInsertTemplate} onClose={() => setPromptLibraryOpen(false)} />
+                )}
+                {attachMenuOpen && (
+                  <AttachMenu
+                    reusePicker={reusePicker}
+                    conversations={listConversations().filter(c => c.id !== convId)}
+                    reuseSourceId={reuseSourceId}
+                    reuseDocs={reuseDocs}
+                    onUpload={() => fileInputRef.current?.click()}
+                    onOpenReuse={openReusePicker}
+                    onPickSource={handlePickReuseSource}
+                    onPickDocument={handleReuseDocument}
+                    onBack={() => setReusePicker(false)}
+                    onBackToSources={handleBackToSources}
+                    onClose={closeAttachMenu}
+                  />
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileSelected}
+                  style={{ display: 'none' }}
                 />
               </div>
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                disabled={loading}
+                placeholder="e.g. What does Section 302 IPC prescribe?"
+                className="flex-1 min-w-0 text-sm rounded-[var(--radius-md)] px-4 py-2.5 outline-none disabled:opacity-60"
+                style={{
+                  border: '1px solid var(--border-input)',
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-main)',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                  fontFamily: "var(--font-sans)",
+                }}
+                onFocus={e => {
+                  e.target.style.borderColor = 'var(--ink)'
+                  e.target.style.boxShadow = 'var(--shadow-focus)'
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = 'var(--border-input)'
+                  e.target.style.boxShadow = 'none'
+                }}
+              />
             </div>
-            <span
-              className="text-[11.5px] font-medium"
-              style={{ color: useWebSearch ? 'var(--ink)' : 'var(--text-muted)' }}
-            >
-              Search web
-            </span>
-          </label>
-        </div>
-
-        {/* Input form */}
-        <form onSubmit={handleSubmit} className="flex gap-2.5 items-center">
-          <div className="relative flex-shrink-0 flex gap-1">
-            <ToolbarIconButton
-              title="Skills · Prompt library"
-              active={promptLibraryOpen}
-              onClick={() => setPromptLibraryOpen(v => !v)}
-            >
-              <BookOpen size={15} />
-            </ToolbarIconButton>
-            <ToolbarIconButton
-              title="Refine this draft"
-              disabled={!input.trim()}
-              onClick={handleRefineDraft}
-            >
-              <Wand2 size={15} />
-            </ToolbarIconButton>
-            {promptLibraryOpen && (
-              <PromptLibrary onSelect={handleInsertTemplate} onClose={() => setPromptLibraryOpen(false)} />
-            )}
+            <div className="flex gap-2.5 items-center flex-wrap sm:flex-nowrap">
+              <SourcePicker selected={selectedSources} onChange={setSelectedSources} />
+              <select
+                value={outputFormat}
+                onChange={e => setOutputFormat(e.target.value)}
+                disabled={loading}
+                className="text-sm rounded-[var(--radius-md)] px-2 py-2.5 outline-none disabled:opacity-60 cursor-pointer"
+                style={{
+                  border: '1px solid var(--border-input)',
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-card)',
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                <option value="CREAC">CREAC</option>
+                <option value="IRAC">IRAC</option>
+                <option value="BRIEF">Brief</option>
+              </select>
+              <SubmitButton loading={loading} disabled={loading || !input.trim()} />
+            </div>
           </div>
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            disabled={loading}
-            placeholder="e.g. What does Section 302 IPC prescribe?"
-            className="flex-1 text-sm rounded-[var(--radius-md)] px-4 py-2.5 outline-none disabled:opacity-60"
-            style={{
-              border: '1px solid var(--border-input)',
-              color: 'var(--text-primary)',
-              background: 'var(--bg-main)',
-              transition: 'border-color 0.15s, box-shadow 0.15s',
-              fontFamily: "var(--font-sans)",
-            }}
-            onFocus={e => {
-              e.target.style.borderColor = 'var(--ink)'
-              e.target.style.boxShadow = 'var(--shadow-focus)'
-            }}
-            onBlur={e => {
-              e.target.style.borderColor = 'var(--border-input)'
-              e.target.style.boxShadow = 'none'
-            }}
-          />
-          <SubmitButton loading={loading} disabled={loading || !input.trim()} />
         </form>
+
+        {/* Attached document chips */}
+        {mode === 'interact' && attachedFiles.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap mb-3">
+            {attachedFiles.map(doc => (
+              <span
+                key={doc.file_hash}
+                className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-[var(--radius-sm)] text-[11.5px] font-medium"
+                style={{ border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}
+              >
+                {doc.filename}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFile(doc.file_hash)}
+                  title="Remove document"
+                  className="flex items-center justify-center rounded-full transition-colors duration-150"
+                  style={{ width: 16, height: 16, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-error-bg)'; e.currentTarget.style.color = 'var(--color-error)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' }}
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -413,6 +593,151 @@ function ToolbarIconButton({ children, onClick, title, active, disabled }) {
     >
       {children}
     </button>
+  )
+}
+
+function AttachMenu({
+  reusePicker,
+  conversations,
+  reuseSourceId,
+  reuseDocs,
+  onUpload,
+  onOpenReuse,
+  onPickSource,
+  onPickDocument,
+  onBack,
+  onBackToSources,
+  onClose,
+}) {
+  const panelRef = useRef(null)
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (panelRef.current && !panelRef.current.contains(e.target)) onClose()
+    }
+    function handleKey(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  const itemStyle = {
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    textAlign: 'left',
+    color: 'var(--text-primary)',
+  }
+  const hoverOn = e => { e.currentTarget.style.background = 'var(--ink-light)' }
+  const hoverOff = e => { e.currentTarget.style.background = 'transparent' }
+
+  return (
+    <div
+      ref={panelRef}
+      className="absolute bottom-full left-0 mb-2 z-30 flex flex-col overflow-hidden"
+      style={{
+        width: '260px',
+        maxHeight: '280px',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-default)',
+        background: 'var(--bg-card)',
+        boxShadow: 'var(--shadow-panel)',
+      }}
+    >
+      {!reusePicker && (
+        <div className="p-1.5">
+          <button
+            type="button"
+            onClick={onUpload}
+            className="w-full px-2.5 py-2 rounded-[6px] text-[12.5px] font-medium transition-colors duration-150"
+            style={itemStyle}
+            onMouseEnter={hoverOn}
+            onMouseLeave={hoverOff}
+          >
+            Upload from device
+          </button>
+          <button
+            type="button"
+            onClick={onOpenReuse}
+            className="w-full px-2.5 py-2 rounded-[6px] text-[12.5px] font-medium transition-colors duration-150"
+            style={itemStyle}
+            onMouseEnter={hoverOn}
+            onMouseLeave={hoverOff}
+          >
+            Reuse from another matter
+          </button>
+        </div>
+      )}
+
+      {reusePicker && !reuseSourceId && (
+        <div className="p-1.5 overflow-y-auto">
+          <button
+            type="button"
+            onClick={onBack}
+            className="w-full px-2.5 py-1.5 text-[11px] font-medium"
+            style={{ ...itemStyle, color: 'var(--text-muted)' }}
+          >
+            ← Back
+          </button>
+          {conversations.length === 0 ? (
+            <p className="m-0 px-2.5 py-2 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+              No other matters yet.
+            </p>
+          ) : (
+            conversations.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onPickSource(c.id)}
+                className="w-full px-2.5 py-2 rounded-[6px] text-[12.5px] font-medium truncate transition-colors duration-150"
+                style={itemStyle}
+                onMouseEnter={hoverOn}
+                onMouseLeave={hoverOff}
+              >
+                {c.title}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+
+      {reusePicker && reuseSourceId && (
+        <div className="p-1.5 overflow-y-auto">
+          <button
+            type="button"
+            onClick={onBackToSources}
+            className="w-full px-2.5 py-1.5 text-[11px] font-medium"
+            style={{ ...itemStyle, color: 'var(--text-muted)' }}
+          >
+            ← Back
+          </button>
+          {reuseDocs.length === 0 ? (
+            <p className="m-0 px-2.5 py-2 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+              No documents in that matter.
+            </p>
+          ) : (
+            reuseDocs.map(doc => (
+              <button
+                key={doc.file_hash}
+                type="button"
+                onClick={() => onPickDocument(doc.file_hash)}
+                className="w-full px-2.5 py-2 rounded-[6px] text-[12.5px] font-medium truncate transition-colors duration-150"
+                style={itemStyle}
+                onMouseEnter={hoverOn}
+                onMouseLeave={hoverOff}
+              >
+                {doc.filename}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
