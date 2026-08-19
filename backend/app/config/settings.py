@@ -83,7 +83,7 @@ class Settings(BaseSettings):
 
     # Verifier gate — block ungrounded answers, regenerate once (LexLegis-style)
     VERIFIER_GATE_ENABLED: bool = True
-    GROUNDEDNESS_MIN: float = 0.5          # verdict "unsupported" (< this) fails the gate
+    GROUNDEDNESS_MIN: float = 0.0          # gate never blocks; verification badge still shows for transparency
     GATE_BLOCKED_MESSAGE: str = (
         "I could not produce an answer grounded in the retrieved legal sources. "
         "Rather than risk an unsupported statement, I'm declining to answer — "

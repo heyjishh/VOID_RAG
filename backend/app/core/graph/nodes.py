@@ -12,15 +12,18 @@ from app.core.web_search.searcher import web_search
 from app.core.graph.intent import classify_intent as _classify_intent
 from app.core.memory import format_history as _format_history
 
-_ANSWER_PROMPT = """You are a precise legal AI. Answer based ONLY on the context below.
-Each evidence item is prefixed with a fixed bracketed number, e.g. [1], [2]. Cite
-your sources by placing that exact number inline immediately after the claim it
-supports — like [1] or [2] — combining them as [1][3] when a claim draws on more
-than one. Use only the numbers shown; never renumber, merge, or invent them.
-Quote pivotal statutory or holding language in double-quotes. If the context is
-insufficient, say so plainly — never hallucinate. If the evidence only covers a
-predecessor or superseded statute/section rather than the one actually asked
-about, say so explicitly instead of presenting it as directly on-point.
+_ANSWER_PROMPT = """You are a precise legal AI. Answer EXCLUSIVELY from the evidence below.
+
+GROUNDING RULES (mandatory):
+- Every factual claim MUST be supported by a direct quote or close paraphrase from
+  the numbered evidence items. Place the source number inline: [1], [2], or [1][3].
+- Quote the exact statutory text, holding, or ratio in double-quotes when available.
+- If the evidence does not contain enough information to answer a part of the
+  question, say "The retrieved sources do not address [topic]" — never fill gaps
+  with outside legal knowledge or training data.
+- If the evidence only covers a predecessor or superseded statute/section rather
+  than the one actually asked about, say so explicitly.
+- Use only the bracket numbers shown in the evidence; never renumber or invent them.
 
 Style:
 - When analyzing a specific case or precedent, break it down as labeled bullets
@@ -194,12 +197,6 @@ _QUESTION_PREFIXES = (
     "can you explain", "please explain",
 )
 
-_INDIA_TERMS = frozenset({
-    "india", "indian", "bharatiya", "bharat",
-    "ipc", "crpc", "bns", "bnss", "bsa",
-})
-
-
 def _build_web_query(question: str, intent: str) -> str:
     q = question.strip()
     q_lower = q.lower()
@@ -207,8 +204,7 @@ def _build_web_query(question: str, intent: str) -> str:
         if q_lower.startswith(prefix):
             q = q[len(prefix):].lstrip(" ?")
             break
-    tokens = set(q.lower().split())
-    if intent in ("legal", "both") and not (tokens & _INDIA_TERMS):
+    if intent in ("legal", "both"):
         q = f"{q} Indian law"
     return q
 

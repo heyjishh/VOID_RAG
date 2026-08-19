@@ -32,7 +32,7 @@ const VERDICT_ICONS = {
 const VERDICT_META = Object.fromEntries(
   Object.entries(VERDICT_TOKENS).map(([key, tokens]) => [key, { ...tokens, icon: VERDICT_ICONS[key] }])
 )
-VERDICT_META.unsupported.label = 'Unsupported — verify manually'
+VERDICT_META.unsupported.label = 'Limited evidence'
 
 export default function VerificationBadge({ verification, question, onRefine }) {
   const [expanded, setExpanded] = useState(false)
@@ -92,7 +92,7 @@ export default function VerificationBadge({ verification, question, onRefine }) 
             <path d="M12 9v4M12 17h.01" />
             <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
           </svg>
-          <span>Release withheld — even a rewritten attempt did not sufficiently match the retrieved sources.</span>
+          <span>Low evidence match — this answer could not be fully grounded in the retrieved sources. Verify independently.</span>
         </div>
       )}
 
