@@ -45,12 +45,25 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
 
 
 async def ping() -> bool:
-    """Lightweight connectivity check for startup. Never raises — logs and returns False."""
     try:
         engine = get_engine()
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return True
-    except Exception as exc:  # noqa: BLE001 — startup check must never crash the app
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Postgres unreachable at startup: %s", exc)
         return False
+
+
+async def ensure_tables() -> None:
+    try:
+        from app.models.auth import User  # noqa: F401
+        from app.models.draft import DraftRun  # noqa: F401
+        from app.models.audit_log import AuditLog  # noqa: F401
+
+        engine = get_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("ensure_tables: schema up to date")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("ensure_tables failed: %s", exc)

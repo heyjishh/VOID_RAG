@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { marked } from 'marked'
 import { Paperclip, X, Sparkles } from 'lucide-react'
-import { draftDocument, uploadDraftDocument } from '../lib/api.js'
+import { streamDraft, uploadDraftDocument } from '../lib/api.js'
 import { downloadTextFile } from '../lib/exportAnswer.js'
 import DraftHistorySidebar from './DraftHistorySidebar.jsx'
 
@@ -94,6 +94,8 @@ export default function DraftPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [historyKey, setHistoryKey] = useState(0)
+  const [statusText, setStatusText] = useState('')
+  const contentRef = useRef('')
 
   async function handleAttach(slotKey, file) {
     setUploadingSlot(slotKey)
@@ -120,21 +122,43 @@ export default function DraftPanel() {
     if (!brief.trim() || loading) return
     setLoading(true)
     setError('')
+    setContent('')
+    setStatusText('Preparing draft…')
+    contentRef.current = ''
+
     try {
-      const data = await draftDocument({
-        brief: brief.trim(),
-        document_type: documentType,
-        house_style_file_hash: attachments.houseStyle?.file_hash,
-        input_document_file_hash: attachments.inputDocument?.file_hash,
-        research_before_drafting: researchBeforeDrafting,
-        session_id: sessionId,
-      })
-      setContent(data.content || '')
-      setHistoryKey(k => k + 1)
+      await streamDraft(
+        {
+          brief: brief.trim(),
+          document_type: documentType,
+          house_style_file_hash: attachments.houseStyle?.file_hash,
+          input_document_file_hash: attachments.inputDocument?.file_hash,
+          research_before_drafting: researchBeforeDrafting,
+          session_id: sessionId,
+        },
+        {
+          onReasoningStep: (data) => {
+            setStatusText(data.detail || data.step || '')
+          },
+          onSourceChunk: () => {},
+          onDraftToken: (data) => {
+            contentRef.current += data.token
+            setContent(contentRef.current)
+          },
+          onDone: () => {
+            setStatusText('')
+            setHistoryKey(k => k + 1)
+          },
+          onError: (err) => {
+            setError(err?.message || 'Draft generation failed.')
+          },
+        },
+      )
     } catch (err) {
-      setError(err?.response?.data?.detail || 'Draft generation failed. Please try again.')
+      setError(err?.message || 'Draft generation failed. Please try again.')
     } finally {
       setLoading(false)
+      setStatusText('')
     }
   }
 
@@ -155,12 +179,20 @@ export default function DraftPanel() {
           <span className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>
             Drafting workspace
           </span>
-          {content && (
+          {content && !loading && (
             <span
               className="text-[10px] font-bold px-1.5 py-0.5 rounded-[4px] uppercase"
               style={{ color: 'var(--sage)', background: 'var(--sage-light)', border: '1px solid var(--sage-border)', letterSpacing: '0.05em' }}
             >
               Draft ready
+            </span>
+          )}
+          {loading && statusText && (
+            <span
+              className="text-[11px] font-medium px-2 py-0.5 rounded-[4px]"
+              style={{ color: 'var(--ink)', background: 'var(--ink-light)', border: '1px solid var(--ink-border)' }}
+            >
+              {statusText}
             </span>
           )}
           <div className="flex-1" />

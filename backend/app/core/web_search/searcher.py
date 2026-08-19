@@ -214,25 +214,55 @@ async def _brave(query: str, max_results: int) -> list[WebEvidence]:
 
 
 async def _duckduckgo(query: str, max_results: int) -> list[WebEvidence]:
-    """Search via DuckDuckGo (no API key required)."""
+    """Search via DuckDuckGo (no API key required).
+
+    Runs two searches concurrently — one broad and one scoped to
+    indiankanoon.org (the most comprehensive free Indian legal database) —
+    then deduplicates by URL. This compensates for DuckDuckGo's tendency to
+    return generic results for Indian legal queries.
+    """
     try:
         from ddgs import DDGS  # optional dep
-        loop = asyncio.get_running_loop()
-        hits = await loop.run_in_executor(
-            None, lambda: list(DDGS().text(query, max_results=max_results))
+    except ImportError:
+        logger.debug("ddgs not installed — DuckDuckGo step skipped")
+        return []
+
+    loop = asyncio.get_running_loop()
+
+    def _broad():
+        return list(DDGS().text(query, max_results=max_results))
+
+    def _scoped():
+        return list(DDGS().text(
+            f"site:indiankanoon.org {query}",
+            max_results=min(max_results, 3),
+        ))
+
+    try:
+        broad_hits, scoped_hits = await asyncio.gather(
+            loop.run_in_executor(None, _broad),
+            loop.run_in_executor(None, _scoped),
         )
-        return [
-            _make_evidence(
-                title=r.get("title", ""),
-                url=r.get("href", ""),
-                content=r.get("body", ""),
-                score=0.3,
-            )
-            for r in (hits or [])
-        ]
     except Exception as exc:  # noqa: BLE001
         logger.debug("DuckDuckGo search failed: %s", exc)
         return []
+
+    seen_urls: set[str] = set()
+    evidence: list[WebEvidence] = []
+    for r in (scoped_hits or []) + (broad_hits or []):
+        url = r.get("href", "")
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        evidence.append(
+            _make_evidence(
+                title=r.get("title", ""),
+                url=url,
+                content=r.get("body", ""),
+                score=0.3,
+            )
+        )
+    return evidence
 
 
 # ---------------------------------------------------------------------------

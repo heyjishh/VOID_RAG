@@ -30,7 +30,13 @@ export default function DraftHistorySidebar({ refreshKey }) {
 
   useEffect(() => {
     let cancelled = false
+    const token = localStorage.getItem('juryai.token')
+    if (!token) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
+    setError('')
     getRecentDrafts()
       .then(data => { if (!cancelled) setRuns(data) })
       .catch(() => { if (!cancelled) setError('Could not load recent drafts.') })

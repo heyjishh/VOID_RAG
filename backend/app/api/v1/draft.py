@@ -16,10 +16,13 @@ POST /draft itself stays unauthenticated, matching the existing endpoint.
 """
 from __future__ import annotations
 
+import json
 import logging
 import uuid
+from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from sqlalchemy import select
 
@@ -58,7 +61,12 @@ async def _optional_user(http_request: Request) -> User | None:
 
 def _source_chunks_out(chunks: list[dict]) -> list[dict]:
     return [
-        {"text": c["text"], "source": c["source"], "page": c["page"], "score": c.get("score", 0.0), "index": i}
+        {
+            "text": c["text"], "source": c["source"], "page": c.get("page", 0),
+            "score": c.get("score", 0.0), "index": i,
+            "domain": c.get("domain", "internal"),
+            "url": c.get("url", ""),
+        }
         for i, c in enumerate(chunks, 1)
     ]
 
@@ -69,9 +77,11 @@ def _citations_out(chunks: list[dict]) -> list[dict]:
             "quote": c["text"][:280],
             "verified": False,
             "source": c["source"],
-            "page": c["page"],
+            "page": c.get("page", 0),
             "content_hash": c.get("content_hash", ""),
             "index": i,
+            "domain": c.get("domain", "internal"),
+            "url": c.get("url", ""),
         }
         for i, c in enumerate(chunks, 1)
     ]
@@ -154,7 +164,7 @@ async def draft(request: DraftRequest, http_request: Request) -> DraftResponse:
         input_document_text=input_document_text,
         research_chunks=research_chunks,
     )
-    resp = await get_llm().ainvoke([HumanMessage(content=prompt)])
+    resp = await get_llm().ainvoke([HumanMessage(content=prompt)], max_tokens=32768)
     content = resp.content
 
     user = await _optional_user(http_request)
@@ -171,6 +181,118 @@ async def draft(request: DraftRequest, http_request: Request) -> DraftResponse:
         run_id=str(run_id) if run_id else None,
         citations=_citations_out(research_chunks),
         source_chunks=_source_chunks_out(research_chunks),
+    )
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+async def _draft_stream_generator(request: DraftRequest, http_request: Request) -> AsyncGenerator[str, None]:
+    brief = request.brief.strip()
+
+    yield _sse("reasoning_step", {"step": "draft_start", "detail": "Preparing draft"})
+
+    research_chunks: list[dict] = []
+    if request.research_before_drafting:
+        yield _sse("reasoning_step", {"step": "research", "detail": "Searching corpus and web for context"})
+        research_chunks = await research_for_draft(brief, sources=request.sources or None)
+        internal = [c for c in research_chunks if c.get("domain") != "web"]
+        web = [c for c in research_chunks if c.get("domain") == "web"]
+        parts = []
+        if internal:
+            files = list(dict.fromkeys(c.get("source", "") for c in internal))
+            parts.append(f"{len(internal)} from corpus ({', '.join(files)})")
+        if web:
+            parts.append(f"{len(web)} from web")
+        yield _sse("reasoning_step", {
+            "step": "research_done",
+            "detail": " + ".join(parts) if parts else "No matching research found",
+        })
+
+    try:
+        house_style_text = (
+            get_document_text(request.session_id, request.house_style_file_hash) or None
+            if request.session_id and request.house_style_file_hash
+            else None
+        )
+        input_document_text = (
+            get_document_text(request.session_id, request.input_document_file_hash) or None
+            if request.session_id and request.input_document_file_hash
+            else None
+        )
+    except InvalidSessionId:
+        house_style_text = None
+        input_document_text = None
+
+    for i, c in enumerate(research_chunks, 1):
+        yield _sse("source_chunk", {
+            "text": c["text"], "source": c["source"], "page": c.get("page", 0),
+            "score": c.get("score", 0.0), "index": i,
+            "domain": c.get("domain", "internal"), "url": c.get("url", ""),
+        })
+
+    prompt = build_draft_prompt(
+        brief=brief,
+        document_type=request.document_type,
+        house_style_text=house_style_text,
+        input_document_text=input_document_text,
+        research_chunks=research_chunks,
+    )
+
+    yield _sse("reasoning_step", {"step": "generating", "detail": "Generating document"})
+
+    full_content = ""
+    try:
+        async for chunk in get_llm().astream([HumanMessage(content=prompt)], max_tokens=32768):
+            token: str = getattr(chunk, "content", "") or ""
+            if token:
+                full_content += token
+                yield _sse("draft_token", {"token": token})
+    except Exception as exc:
+        logger.warning("Draft stream failed: %s", exc)
+        yield _sse("error", {"detail": "Generation interrupted"})
+
+    user = await _optional_user(http_request)
+    run_id = await _persist_draft_run(
+        user_id=user.id if user else None,
+        title=brief[:120],
+        document_type=request.document_type or "",
+        brief=brief,
+        content=full_content,
+    )
+
+    yield _sse("done", {
+        "content": full_content,
+        "run_id": str(run_id) if run_id else None,
+        "citations": _citations_out(research_chunks),
+        "source_chunks": _source_chunks_out(research_chunks),
+    })
+
+
+@router.post("/draft/stream")
+async def draft_stream(request: DraftRequest, http_request: Request) -> StreamingResponse:
+    brief = request.brief.strip()
+    if not brief:
+        raise HTTPException(status_code=400, detail="brief must not be empty")
+    if request.document_type and request.document_type not in DRAFT_DOCUMENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"document_type must be one of {sorted(DRAFT_DOCUMENT_TYPES)}",
+        )
+    if (request.house_style_file_hash or request.input_document_file_hash) and not request.session_id:
+        raise HTTPException(
+            status_code=400,
+            detail="session_id is required when house_style_file_hash or input_document_file_hash is given",
+        )
+    result = await check_rate_limit(_client_id(http_request))
+    if not result.allowed:
+        raise HTTPException(status_code=429, detail={"retry_after": str(result.retry_after)})
+
+    return StreamingResponse(
+        content=_draft_stream_generator(request, http_request),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

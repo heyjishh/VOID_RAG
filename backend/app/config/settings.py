@@ -83,7 +83,7 @@ class Settings(BaseSettings):
 
     # Verifier gate — block ungrounded answers, regenerate once (LexLegis-style)
     VERIFIER_GATE_ENABLED: bool = True
-    GROUNDEDNESS_MIN: float = 0.5          # verdict "unsupported" (< this) fails the gate
+    GROUNDEDNESS_MIN: float = 0.0          # gate never blocks; verification badge still shows for transparency
     GATE_BLOCKED_MESSAGE: str = (
         "I could not produce an answer grounded in the retrieved legal sources. "
         "Rather than risk an unsupported statement, I'm declining to answer — "
@@ -327,13 +327,21 @@ class Settings(BaseSettings):
         streaming path seen in practice; the local gateway and other direct
         providers are fallbacks if Groq is unset or fails."""
         chain: list[dict] = []
+        if self.GOOGLE_GEMINI_KEY:
+            chain.append({
+                "kind": "openai",
+                "provider_name": "gemini",
+                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "api_key": self.GOOGLE_GEMINI_KEY,
+                "model": "gemini-2.5-flash",
+            })
         if self.GROQ_API_KEY:
             chain.append({
                 "kind": "openai",
                 "provider_name": "groq",
                 "base_url": "https://api.groq.com/openai/v1",
                 "api_key": self.GROQ_API_KEY,
-                "model": "llama-3.3-70b-versatile",
+                "model": "llama-3.3-70b-specdec",
             })
         if self.NVIDIA_API_KEY:
             chain.append({
@@ -350,14 +358,6 @@ class Settings(BaseSettings):
                 "base_url": "https://api.mistral.ai/v1",
                 "api_key": self.MISTRAL_KEY or self.MISTRAL_API_KEY,
                 "model": "mistral-large-latest",
-            })
-        if self.GOOGLE_GEMINI_KEY:
-            chain.append({
-                "kind": "openai",
-                "provider_name": "gemini",
-                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
-                "api_key": self.GOOGLE_GEMINI_KEY,
-                "model": "gemini-flash-latest",
             })
         if self.SAMBANOVA_KEY:
             chain.append({

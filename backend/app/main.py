@@ -25,9 +25,11 @@ logger = logging.getLogger("juryai")
 async def _lifespan(app: FastAPI):
     logger.info("Lifespan startup begin")
 
-    from app.core.db import ping
+    from app.core.db import ping, ensure_tables
     if not await ping():
         logger.warning("Postgres unreachable at startup — audit log writes will fail until it recovers")
+    else:
+        await ensure_tables()
 
     stop_event = asyncio.Event()
     interval = max(0, int(getattr(settings, "AUTO_SYNC_INTERVAL_MINUTES", 0) or 0))

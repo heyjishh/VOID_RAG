@@ -98,8 +98,67 @@ export async function sendChat(question, conversationId = null) {
 
 export async function draftDocument(payload) {
   const { data } = await client.post('/draft', payload)
-  // data: {content, run_id, citations, source_chunks}
   return data
+}
+
+export async function streamDraft(payload, callbacks) {
+  const { onReasoningStep, onSourceChunk, onDraftToken, onDone, onError } = callbacks
+
+  const headers = { 'Content-Type': 'application/json' }
+  const token = localStorage.getItem('juryai.token')
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const response = await fetch('/api/v1/draft/stream', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    onError?.(new Error(`HTTP ${response.status}`))
+    return
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    const parts = buffer.split('\n\n')
+    buffer = parts.pop()
+
+    for (const part of parts) {
+      const lines = part.trim().split('\n')
+      let eventType = 'message'
+      let dataStr = ''
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) eventType = line.slice(7).trim()
+        if (line.startsWith('data: ')) dataStr = line.slice(6).trim()
+      }
+
+      if (!dataStr) continue
+
+      try {
+        const data = JSON.parse(dataStr)
+        if (eventType === 'reasoning_step') onReasoningStep?.(data)
+        else if (eventType === 'source_chunk') onSourceChunk?.(data)
+        else if (eventType === 'draft_token') onDraftToken?.(data)
+        else if (eventType === 'done') {
+          onDone?.(data)
+          return
+        } else if (eventType === 'error') {
+          onError?.(new Error(data.detail || 'Stream error'))
+        }
+      } catch {
+        // Ignore malformed events
+      }
+    }
+  }
 }
 
 export async function uploadDraftDocument(sessionId, file) {
@@ -120,9 +179,13 @@ export async function getRecentDrafts(page = 1, pageSize = 20) {
 export async function streamChat(question, conversationId, useWebSearch, callbacks, outputFormat = 'CREAC', sources = null, mode = 'ask', sessionId = null) {
   const { onReasoningStep, onSourceChunk, onAnswerToken, onGate, onVerification, onDone, onError } = callbacks
 
+  const chatHeaders = { 'Content-Type': 'application/json' }
+  const chatToken = localStorage.getItem('juryai.token')
+  if (chatToken) chatHeaders.Authorization = `Bearer ${chatToken}`
+
   const response = await fetch('/api/v1/chat/stream', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: chatHeaders,
     body: JSON.stringify({
       question,
       conversation_id: conversationId,

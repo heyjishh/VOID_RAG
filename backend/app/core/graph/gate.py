@@ -106,20 +106,12 @@ async def gate_answer(
     else:
         regenerated = False
 
-    if _passes(verification):
-        return GateResult(
-            answer=answer,
-            verification=verification,
-            blocked=False,
-            regenerated=regenerated,
-            model_provider=model_provider,
-            model_name=model_name,
-        )
-
-    # Still ungrounded after the retry — block release.
+    blocked = not _passes(verification)
     return GateResult(
-        answer=settings.GATE_BLOCKED_MESSAGE,
+        answer=answer,
         verification=verification,
-        blocked=True,
+        blocked=blocked,
         regenerated=regenerated,
+        model_provider=model_provider,
+        model_name=model_name,
     )
