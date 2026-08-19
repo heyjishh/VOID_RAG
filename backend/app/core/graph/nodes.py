@@ -9,6 +9,7 @@ from app.core.retrieval.reranker import get_reranker
 from app.core.retrieval.citation import derive_citations
 from app.core.graph.evidence_merger import ensure_content_hashes
 from app.core.web_search.searcher import web_search
+from app.core.graph.intent import classify_intent as _classify_intent
 from app.core.memory import format_history as _format_history
 
 _ANSWER_PROMPT = """You are a precise legal AI. Answer based ONLY on the context below.
@@ -186,6 +187,32 @@ async def interact_retrieve_node(state: JuryAIState) -> dict:
     return {"legal_chunks": reranked, "reasoning_steps": steps}
 
 
+_QUESTION_PREFIXES = (
+    "what is", "what are", "what does", "what do",
+    "how does", "how do", "how is", "how are", "how to",
+    "explain", "define", "describe", "tell me about",
+    "can you explain", "please explain",
+)
+
+_INDIA_TERMS = frozenset({
+    "india", "indian", "bharatiya", "bharat",
+    "ipc", "crpc", "bns", "bnss", "bsa",
+})
+
+
+def _build_web_query(question: str, intent: str) -> str:
+    q = question.strip()
+    q_lower = q.lower()
+    for prefix in _QUESTION_PREFIXES:
+        if q_lower.startswith(prefix):
+            q = q[len(prefix):].lstrip(" ?")
+            break
+    tokens = set(q.lower().split())
+    if intent in ("legal", "both") and not (tokens & _INDIA_TERMS):
+        q = f"{q} Indian law"
+    return q
+
+
 async def web_search_node(state: JuryAIState) -> dict:
     steps = list(state.get("reasoning_steps") or [])
     steps.append({
@@ -195,8 +222,11 @@ async def web_search_node(state: JuryAIState) -> dict:
     if state.get("on_step"):
         state["on_step"](steps[-1])
 
+    intent = state.get("intent") or _classify_intent(state["question"])
+    query = _build_web_query(state["question"], intent)
+
     results = await web_search(
-        state["question"],
+        query,
         max_results=settings.WEB_SEARCH_MAX_RESULTS,
         on_step=state.get("on_step"),
     )

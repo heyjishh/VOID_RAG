@@ -32,11 +32,14 @@ def _to_anthropic_payload(messages):
     return "\n\n".join(system_parts), turns
 
 
-async def _openai_complete(client: httpx.AsyncClient, provider: dict, messages: list) -> tuple[str, dict]:
+async def _openai_complete(client: httpx.AsyncClient, provider: dict, messages: list, max_tokens: int | None = None) -> tuple[str, dict]:
+    payload: dict = {"model": provider["model"], "messages": messages}
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
     resp = await client.post(
         f"{provider['base_url']}/chat/completions",
         headers={"Authorization": f"Bearer {provider['api_key']}"} if provider["api_key"] else {},
-        json={"model": provider["model"], "messages": messages},
+        json=payload,
     )
     resp.raise_for_status()
     body = resp.json()
@@ -44,18 +47,21 @@ async def _openai_complete(client: httpx.AsyncClient, provider: dict, messages: 
     return body["choices"][0]["message"]["content"] or "", _normalize_openai_usage(usage)
 
 
-async def _openai_stream(client: httpx.AsyncClient, provider: dict, messages: list):
+async def _openai_stream(client: httpx.AsyncClient, provider: dict, messages: list, max_tokens: int | None = None):
     """Yields (delta_text, usage) — usage is {} until the final usage-only
     chunk (enabled via stream_options.include_usage), which carries no delta."""
     headers = {"Authorization": f"Bearer {provider['api_key']}"} if provider["api_key"] else {}
+    payload: dict = {
+        "model": provider["model"], "messages": messages, "stream": True,
+        "stream_options": {"include_usage": True},
+    }
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
     async with client.stream(
         "POST",
         f"{provider['base_url']}/chat/completions",
         headers=headers,
-        json={
-            "model": provider["model"], "messages": messages, "stream": True,
-            "stream_options": {"include_usage": True},
-        },
+        json=payload,
     ) as resp:
         resp.raise_for_status()
         async for line in resp.aiter_lines():
@@ -78,12 +84,12 @@ def _normalize_openai_usage(usage: dict) -> dict:
     return {"input_tokens": usage.get("prompt_tokens", 0), "output_tokens": usage.get("completion_tokens", 0)}
 
 
-async def _anthropic_complete(client: httpx.AsyncClient, provider: dict, messages: list) -> tuple[str, dict]:
+async def _anthropic_complete(client: httpx.AsyncClient, provider: dict, messages: list, max_tokens: int | None = None) -> tuple[str, dict]:
     system, turns = _to_anthropic_payload(messages)
     resp = await client.post(
         "https://api.anthropic.com/v1/messages",
         headers={"x-api-key": provider["api_key"], "anthropic-version": "2023-06-01"},
-        json={"model": provider["model"], "max_tokens": 4096, "system": system, "messages": turns},
+        json={"model": provider["model"], "max_tokens": max_tokens or 4096, "system": system, "messages": turns},
     )
     resp.raise_for_status()
     body = resp.json()
@@ -93,12 +99,12 @@ async def _anthropic_complete(client: httpx.AsyncClient, provider: dict, message
     return text, {"input_tokens": usage.get("input_tokens", 0), "output_tokens": usage.get("output_tokens", 0)}
 
 
-async def _anthropic_stream(client: httpx.AsyncClient, provider: dict, messages: list):
+async def _anthropic_stream(client: httpx.AsyncClient, provider: dict, messages: list, max_tokens: int | None = None):
     """Yields (delta_text, usage) — usage accumulates as Anthropic reports it:
     input_tokens on message_start, output_tokens on message_delta."""
     system, turns = _to_anthropic_payload(messages)
     headers = {"x-api-key": provider["api_key"], "anthropic-version": "2023-06-01"}
-    payload = {"model": provider["model"], "max_tokens": 4096, "system": system, "messages": turns, "stream": True}
+    payload = {"model": provider["model"], "max_tokens": max_tokens or 4096, "system": system, "messages": turns, "stream": True}
     usage: dict = {}
     async with client.stream("POST", "https://api.anthropic.com/v1/messages", headers=headers, json=payload) as resp:
         resp.raise_for_status()
@@ -140,13 +146,16 @@ class DirectApiChat(BaseChatModel):
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         chain = settings.llm_provider_chain
         last_exc = None
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            for provider in chain:
-                try:
+        max_tokens = kwargs.get("max_tokens")
+        base_timeout = kwargs.get("timeout", 30.0)
+        for provider in chain:
+            timeout = httpx.Timeout(base_timeout, connect=5.0)
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
                     if provider["kind"] == "anthropic":
-                        text, usage = await _anthropic_complete(client, provider, messages)
+                        text, usage = await _anthropic_complete(client, provider, messages, max_tokens=max_tokens)
                     else:
-                        text, usage = await _openai_complete(client, provider, _to_openai_messages(messages))
+                        text, usage = await _openai_complete(client, provider, _to_openai_messages(messages), max_tokens=max_tokens)
                     return ChatResult(generations=[ChatGeneration(message=AIMessage(
                         content=text,
                         response_metadata={
@@ -154,32 +163,35 @@ class DirectApiChat(BaseChatModel):
                             "usage": usage,
                         },
                     ))])
-                except Exception as exc:
-                    last_exc = exc
-                    continue
+            except Exception as exc:
+                last_exc = exc
+                continue
         raise RuntimeError(f"All LLM providers failed. Last error: {last_exc}")
 
     async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
         chain = settings.llm_provider_chain
         last_exc = None
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            for provider in chain:
-                meta = {"model_provider": provider["provider_name"], "model_name": provider["model"]}
-                try:
-                    got_chunk = False
+        max_tokens = kwargs.get("max_tokens")
+        stream_timeout = kwargs.get("timeout", 600.0)
+        for provider in chain:
+            timeout = httpx.Timeout(stream_timeout, connect=5.0)
+            meta = {"model_provider": provider["provider_name"], "model_name": provider["model"]}
+            try:
+                got_chunk = False
+                async with httpx.AsyncClient(timeout=timeout) as client:
                     if provider["kind"] == "anthropic":
-                        gen = _anthropic_stream(client, provider, messages)
+                        gen = _anthropic_stream(client, provider, messages, max_tokens=max_tokens)
                     else:
-                        gen = _openai_stream(client, provider, _to_openai_messages(messages))
+                        gen = _openai_stream(client, provider, _to_openai_messages(messages), max_tokens=max_tokens)
                     async for delta, usage in gen:
                         got_chunk = True
                         chunk_meta = {**meta, "usage": usage} if usage else meta
                         yield ChatGenerationChunk(message=AIMessageChunk(content=delta, response_metadata=chunk_meta))
-                    if got_chunk:
-                        return
-                except Exception as exc:
-                    last_exc = exc
-                    continue
+                if got_chunk:
+                    return
+            except Exception as exc:
+                last_exc = exc
+                continue
         # Every provider's streamed request failed outright (seen in practice with
         # free-tier gateways whose streaming path is flakier than their plain
         # completion path — the gateway serves a full non-streamed reply fine but
