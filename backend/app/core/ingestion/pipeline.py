@@ -4,9 +4,11 @@ import logging
 import asyncio
 import os
 import time
+import uuid
 from pathlib import Path
 
 import psutil
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +17,14 @@ from app.core.ingestion.parser import parse_bytes
 from app.core.ingestion.manifest import Manifest
 from app.core.retrieval.qdrant_store import QdrantStore
 from app.core.retrieval.quickwit_store import QuickwitStore
+from app.core.db import get_sessionmaker
+from app.models.legal_chunk import LegalChunk
 from app.config.settings import settings
 
-_SUPPORTED = (".pdf", ".txt", ".md")
+_SUPPORTED = (
+    ".pdf", ".txt", ".md", ".xlsx", ".xlsm", ".csv", ".docx",
+    ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif", ".bmp",
+)
 _INGEST_BATCH_SIZE = 32
 _INGEST_MIN_CONCURRENT = 2
 _INGEST_MAX_CONCURRENT = min(24, (os.cpu_count() or 2) * 4)
@@ -39,6 +46,51 @@ _sync_state = {
     "cpu_percent": 0.0,
 }
 _sync_lock = asyncio.Lock()
+
+
+def _chunk_content_id(source: str, page: int, text: str) -> str:
+    """Same content-addressed id Qdrant/Quickwit compute — one canonical
+    identity for a chunk across all three stores, not three independent
+    schemes that could silently drift apart."""
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source}|{page}|{text}"))
+
+
+async def _upsert_legal_chunks_pg(chunks: list[dict]) -> None:
+    """Mirror the corpus into Postgres — SpiceAI has no Qdrant connector, so
+    this table is what its `juryai_legal` dataset actually queries for
+    SQL/NQL search and, via the DuckDB vector engine, its own semantic
+    search. Upserted (not inserted) so re-ingesting an unchanged S3 key
+    overwrites the same row instead of piling up duplicates, matching
+    Qdrant's own overwrite-on-reingest behavior."""
+    if not chunks:
+        return
+    # Postgres' ON CONFLICT DO UPDATE errors with CardinalityViolationError if
+    # the same conflict key appears twice in one INSERT — dedupe by id first
+    # (keep-last, matching the upsert's own overwrite semantics) rather than
+    # letting a same-page duplicate chunk fail the whole batch.
+    rows_by_id: dict[str, dict] = {}
+    for c in chunks:
+        row = {
+            "id": _chunk_content_id(c["source"], c["page"], c["text"]),
+            "source": c["source"],
+            "page": c["page"],
+            "chunk_text": c["text"],
+        }
+        rows_by_id[row["id"]] = row
+    rows = list(rows_by_id.values())
+    session = get_sessionmaker()
+    async with session() as db:
+        stmt = pg_insert(LegalChunk).values(rows)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["id"],
+            set_={
+                "source": stmt.excluded.source,
+                "page": stmt.excluded.page,
+                "chunk_text": stmt.excluded.chunk_text,
+            },
+        )
+        await db.execute(stmt)
+        await db.commit()
 
 
 class _CpuGovernor:
@@ -289,6 +341,7 @@ async def run_ingestion_pipeline(
                     if chunks:
                         await asyncio.to_thread(qdrant.upsert, chunks)
                         await asyncio.to_thread(quickwit.upsert, chunks)
+                        await _upsert_legal_chunks_pg(chunks)
                         async with manifest_lock:
                             ingested += 1
                             # Checkpointed the instant this doc finishes, not batched

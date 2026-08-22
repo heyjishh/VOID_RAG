@@ -60,6 +60,8 @@ async def ensure_tables() -> None:
         from app.models.auth import User  # noqa: F401
         from app.models.draft import DraftRun  # noqa: F401
         from app.models.audit_log import AuditLog  # noqa: F401
+        from app.models.juris_void_doc import JurisVoidChunk  # noqa: F401
+        from app.models.legal_chunk import LegalChunk  # noqa: F401
 
         engine = get_engine()
         async with engine.begin() as conn:

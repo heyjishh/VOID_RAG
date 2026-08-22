@@ -7,6 +7,7 @@ Multi-bucket: when several candidate buckets are found they are all written as
 written (set to the highest-priority match) for backward compatibility.
 """
 from __future__ import annotations
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -115,10 +116,15 @@ def run_auto_configure() -> dict[str, str]:
 
     Multi-bucket behaviour:
     - If multiple known candidates are found, writes
-      ``S3_BUCKET_NAMES=b1,b2,...`` (all matched buckets).
-    - ``S3_BUCKET_NAME`` is always set to the best (first) match for
-      backward compatibility with code that reads only that key.
-    - ``S3_DOCUMENT_PREFIX`` is set to the prefix of the best match.
+      ``S3_BUCKET_NAMES=b1,b2,...`` (all matched buckets) AND
+      ``S3_BUCKET_PREFIXES={"b1": "...", "b2": "...", ...}`` — every matched
+      bucket keeps its OWN candidate prefix, so bucket b2's folder is never
+      forced onto bucket b1's. Collapsing this to a single S3_DOCUMENT_PREFIX
+      (the old behavior) silently hid every bucket whose real folder layout
+      didn't match whichever bucket happened to be first in the list.
+    - ``S3_BUCKET_NAME`` / ``S3_DOCUMENT_PREFIX`` are still set from the best
+      (first) match, for backward compatibility with code paths that only
+      ever look at a single bucket.
     """
     env = _read_existing_env()
     written: dict[str, str] = {}
@@ -135,17 +141,21 @@ def run_auto_configure() -> dict[str, str]:
         if matches:
             best_bucket, best_prefix = matches[0]
 
-            # Backward-compat single-bucket key
+            # Backward-compat single-bucket keys
             env["S3_BUCKET_NAME"] = best_bucket
             env["S3_DOCUMENT_PREFIX"] = best_prefix
             env["AWS_REGION"] = "us-east-1"
             written["S3_BUCKET_NAME"] = best_bucket
             written["S3_DOCUMENT_PREFIX"] = best_prefix
 
-            # Multi-bucket key — always written so downstream code can rely on it
+            # Multi-bucket keys — always written so downstream code can rely on them
             bucket_names_csv = ",".join(b for b, _ in matches)
             env["S3_BUCKET_NAMES"] = bucket_names_csv
             written["S3_BUCKET_NAMES"] = bucket_names_csv
+
+            bucket_prefixes_json = json.dumps({b: p for b, p in matches})
+            env["S3_BUCKET_PREFIXES"] = bucket_prefixes_json
+            written["S3_BUCKET_PREFIXES"] = bucket_prefixes_json
 
     # --- Gateway key --------------------------------------------------------
     if not env.get("GATEWAY_KEY"):

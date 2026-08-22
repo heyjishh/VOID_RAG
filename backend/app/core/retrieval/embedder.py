@@ -4,6 +4,7 @@ from typing import Optional
 import sentence_transformers
 from app.config.settings import settings
 from app.core.llm.provider import get_llm
+from app.core.prompts.embedder import HYDE_PROMPT
 
 
 class Embedder:
@@ -36,12 +37,7 @@ class Embedder:
         # HyDE: Generate hypothetical document, embed both, average
         try:
             llm = get_llm()
-            hyde_prompt = (
-                "Write a precise legal passage that directly answers the question. "
-                "Include specific statutes, sections, or case names if applicable.\n\n"
-                f"Question: {query}\n\nPassage:"
-            )
-            # Use a quick, deterministic completion for HyDE
+            hyde_prompt = HYDE_PROMPT.format(question=query)
             from langchain_core.messages import HumanMessage
             resp = llm.invoke([HumanMessage(content=hyde_prompt)])
             hyde_text = getattr(resp, "content", "") or ""

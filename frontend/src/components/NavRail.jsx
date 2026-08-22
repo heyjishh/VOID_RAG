@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { MessagesSquare, FilePen, Paperclip, Settings, LogOut, ChevronDown } from 'lucide-react'
+import { MessagesSquare, FilePen, Paperclip, Settings, LogOut, ChevronDown, Zap } from 'lucide-react'
 import { logout, getDisplayName } from '../lib/session.js'
 
 const NAV_ITEMS = [
   { id: 'ask', label: 'Research', icon: <MessagesSquare size={19} /> },
   { id: 'interact', label: 'Interact', icon: <Paperclip size={19} /> },
   { id: 'draft', label: 'Drafts', icon: <FilePen size={19} /> },
+  { id: 'juris-void', label: 'Juris-VOID', icon: <Zap size={19} /> },
 ]
 
 export default function NavRail({ mode, onModeChange, onSettingsClick, user, onLogout, horizontal = false }) {

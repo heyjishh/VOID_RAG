@@ -349,6 +349,21 @@ export async function getLlmStatus() {
   return data
 }
 
+export async function getAvailableModels() {
+  const { data } = await client.get('/models/available')
+  return data
+}
+
+export async function setJurisVoidModel(provider, model) {
+  const { data } = await client.post('/juris-void/model', { provider, model })
+  return data
+}
+
+export async function getJurisVoidStatus() {
+  const { data } = await client.get('/juris-void/status')
+  return data
+}
+
 export async function scheduleIngest() {
   const { data } = await client.post('/ingest/s3/schedule')
   return data

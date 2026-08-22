@@ -1,4 +1,5 @@
-from pydantic import BaseModel, field_validator
+from datetime import date
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 
 
@@ -17,9 +18,10 @@ class ChatRequest(BaseModel):
     # Source filenames (as returned by GET /documents) to scope retrieval to.
     # None/empty = search the full corpus, unchanged from prior behavior.
     sources: Optional[List[str]] = None
-    # Free-text date ("2023-05-01", "before 1 July 2024") to answer as of —
-    # None means today's law.
-    as_of_date: Optional[str] = None
+    # Date ("YYYY-MM-DD") to answer as of; defaults to today via default_factory
+    # so it's computed per-request, not frozen at import time. Pass an explicit
+    # date to ask about a historical point in time instead.
+    as_of_date: Optional[str] = Field(default_factory=lambda: date.today().isoformat())
 
 
 class LlmStatusOut(BaseModel):
@@ -61,6 +63,7 @@ class SourceChunkOut(BaseModel):
     preview: str = ""
     doc_id: Optional[str] = None
     chunk_id: Optional[str] = None
+    found_by: Optional[str] = None
 
 
 ScoredChunkOut = SourceChunkOut
@@ -278,6 +281,27 @@ class InteractReuseRequest(BaseModel):
 class InteractDocumentsOut(BaseModel):
     session_id: str
     documents: List[InteractDocumentOut] = []
+
+
+# ============================================================================
+# Juris-VOID Upload / OCR Schemas
+# ============================================================================
+
+class OcrStatusOut(BaseModel):
+    """OCR subsystem status. Field names mirror the OCR_* settings so the
+    frontend can explain why a scanned/image-only PDF may extract no text.
+    `available` is whether the pytesseract/pdf2image stack (and the tesseract
+    binary) is actually importable/callable, independent of `enabled`."""
+    enabled: bool
+    available: bool
+    lang: str
+    dpi: int
+    min_chars_per_page: int
+
+
+class JurisVoidUploadOut(BaseModel):
+    document: InteractDocumentOut
+    ocr: OcrStatusOut
 
 
 # ============================================================================

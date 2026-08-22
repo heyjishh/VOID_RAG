@@ -15,7 +15,16 @@ dependencies = [
     # Parsing — structured markdown extraction (headings/tables/lists) per page
     "pymupdf>=1.24.0",
     "pymupdf4llm>=0.0.17",
-    # PDF / DOCX generation
+    # OCR for scanned/image-only PDFs and standalone image uploads (needs
+    # system tesseract + poppler)
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.17.0",
+    # Pillow: used directly for standalone image OCR (was previously only a
+    # transitive dep of pdf2image/pymupdf)
+    "pillow>=10.0.0",
+    # Excel ingestion
+    "openpyxl>=3.1.0",
+    # PDF / DOCX generation and DOCX upload parsing
     "fpdf2>=2.7.0",
     "python-docx>=1.1.0",
     # Cache / memory store — Valkey via redis-py (wire-compatible client)
@@ -44,7 +53,6 @@ dev = [
     "pytest-benchmark>=4.0.0",
 ]
 superior = [
-    "rapidocr-onnxruntime>=1.3.0",
     "onnxruntime>=1.18.0",
     "colbert-ai>=0.2.11",
     "torch>=2.3.0",

@@ -30,7 +30,7 @@ from app.api.schemas import DRAFT_DOCUMENT_TYPES, DraftRequest, DraftResponse, D
 from app.api.v1.auth import get_current_user
 from app.core import auth_store
 from app.core.db import get_sessionmaker
-from app.core.drafting.prompt import build_draft_prompt
+from app.core.prompts.drafting import build_draft_prompt
 from app.core.drafting.research import research_for_draft
 from app.core.drafting.session_docs import get_document_text
 from app.core.llm.provider import get_llm

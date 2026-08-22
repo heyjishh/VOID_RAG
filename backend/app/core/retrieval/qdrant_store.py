@@ -29,6 +29,12 @@ class QdrantStore:
         self._client = QdrantClient(
             url=url or settings.QDRANT_URL,
             api_key=api_key or settings.QDRANT_API_KEY,
+            # Default (None) falls back to a short internal timeout — large
+            # Acts (Companies Act 2013, Income-tax Act 1961, etc.) produce
+            # big upsert batches whose request body transmission routinely
+            # exceeded it under load, failing with httpcore.WriteTimeout on
+            # every retry regardless of content, not transient flakiness.
+            timeout=60,
         )
         self._embedder = get_embedder()
         self._ensure_collection()

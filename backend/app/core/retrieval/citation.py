@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 from app.core.graph.state import CitationResult
 
-# Matches a [N] marker as instructed by _ANSWER_PROMPT — one or more digits in
+# Matches a [N] marker as instructed by ANSWER_PROMPT — one or more digits in
 # brackets, e.g. "[1]" or "[12]". Distinct from "verified" (claim-level
 # groundedness): a chunk can be cited without being grounded (hallucinated
 # citation) or grounded without ever being cited (retrieved but unused).

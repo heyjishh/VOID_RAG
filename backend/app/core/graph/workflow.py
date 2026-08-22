@@ -178,7 +178,8 @@ async def route_and_retrieve_with_progress(state: JuryAIState) -> dict:
 
 async def generate_structured_answer_node(state: JuryAIState) -> dict:
     """Generate answer using the same prompt/style as the legacy v1 endpoint."""
-    from app.core.graph.nodes import _ANSWER_PROMPT, _format_history, answer_format_instructions
+    from app.core.graph.nodes import _format_history, answer_format_instructions
+    from app.core.prompts.answer import ANSWER_PROMPT
     from langchain_core.messages import HumanMessage
     from app.core.llm.provider import get_llm
     
@@ -210,7 +211,7 @@ async def generate_structured_answer_node(state: JuryAIState) -> dict:
         ) or "(none)"
     
     prompt = (
-        _ANSWER_PROMPT
+        ANSWER_PROMPT
         .replace("{history}", _format_history(state.get("history")))
         .replace("{question}", state["question"])
         .replace("{legal_ctx}", legal_ctx)

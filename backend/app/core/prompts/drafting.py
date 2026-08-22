@@ -1,11 +1,3 @@
-"""Prompt construction for the Draft feature.
-
-Assembles one LLM prompt from the user's brief plus whatever optional context
-was supplied: a document-type clause, a house-style exemplar, an input
-document, and/or research chunks from the shared corpus. Each clause is
-independently omittable so a brief-only request still degrades to the
-original v1 prompt.
-"""
 from __future__ import annotations
 
 _DOCUMENT_STRUCTURE = {
@@ -88,7 +80,7 @@ _DOCUMENT_STRUCTURE = {
     ),
 }
 
-_BASE_PROMPT = """You are an expert legal drafting assistant producing comprehensive, court-ready \
+BASE_PROMPT = """You are an expert legal drafting assistant producing comprehensive, court-ready \
 legal documents. Your output must be a COMPLETE, DETAILED, PRODUCTION-READY document in Markdown \
 that a lawyer can file or send with minimal editing.
 
@@ -169,7 +161,7 @@ def build_draft_prompt(
     input_document_text: str | None = None,
     research_chunks: list[dict] | None = None,
 ) -> str:
-    return _BASE_PROMPT.format(
+    return BASE_PROMPT.format(
         brief=brief,
         document_type_clause=_document_type_clause(document_type),
         house_style_clause=_house_style_clause(house_style_text),

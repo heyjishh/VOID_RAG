@@ -27,14 +27,24 @@ class MultiS3Loader:
     def __init__(
         self,
         bucket_names: list[str],
-        prefix: Optional[str] = None,
+        prefix: Optional[str | dict[str, str]] = None,
         region: Optional[str] = None,
         local_root: Optional[str] = None,
+        auto_discover: bool = True,
     ):
-        self.bucket_names: list[str] = [b for b in bucket_names if b]
-        self.prefix: str = (prefix or settings.S3_DOCUMENT_PREFIX).strip("/")
         self.region: str = region or settings.AWS_REGION
         self.local_root: Path = Path(local_root or "/tmp/juryai-storage")
+
+        resolved_names = [b for b in bucket_names if b]
+        if not resolved_names and auto_discover:
+            # No bucket configured at all — discover every bucket visible to
+            # these credentials rather than silently syncing nothing. This is
+            # what an empty S3_BUCKET_NAME/S3_BUCKET_NAMES is meant to mean:
+            # "no restriction", the same philosophy as the empty-prefix
+            # default, extended one level up to bucket selection itself.
+            resolved_names = self._discover_all_buckets(self.region)
+        self.bucket_names: list[str] = resolved_names
+        self._prefixes: dict[str, str] = self._resolve_prefixes(prefix, self.bucket_names)
 
         # One boto3 client per bucket (same credentials, different logical target)
         self._clients: dict[str, object] = {}
@@ -53,6 +63,54 @@ class MultiS3Loader:
                 ),
             )
 
+    @staticmethod
+    def _discover_all_buckets(region: str) -> list[str]:
+        """List every bucket the configured credentials can see via
+        ListAllMyBuckets. Requires that IAM permission specifically (distinct
+        from per-bucket ListBucket/GetObject) — falls back to an empty list
+        (and from there to the local-filesystem fallback) on any failure,
+        same as a per-bucket listing error."""
+        try:
+            client = boto3.client(
+                "s3",
+                region_name=region,
+                config=_BOTO_CONFIG,
+                **(
+                    {
+                        "aws_access_key_id": settings.AWS_ACCESS_KEY_ID,
+                        "aws_secret_access_key": settings.AWS_SECRET_ACCESS_KEY,
+                    }
+                    if settings.AWS_ACCESS_KEY_ID
+                    else {}
+                ),
+            )
+            resp = client.list_buckets()
+            return [b["Name"] for b in resp.get("Buckets", []) if b.get("Name")]
+        except (BotoCoreError, ClientError):
+            return []
+
+    @staticmethod
+    def _resolve_prefixes(prefix: Optional[str | dict[str, str]], bucket_names: list[str]) -> dict[str, str]:
+        """Per-bucket prefix resolution.
+
+        - An explicit dict (or settings.S3_BUCKET_PREFIXES) always wins per bucket.
+        - An explicit plain string applies to every bucket — the caller asked
+          for exactly that (e.g. S3Loader(bucket=X, prefix=Y)).
+        - With nothing explicit and exactly one bucket configured,
+          S3_DOCUMENT_PREFIX applies (true single-bucket legacy behavior).
+        - With nothing explicit and MULTIPLE buckets, a bucket absent from
+          the mapping is scanned unrestricted (""), not silently forced onto
+          whatever prefix another bucket happens to use.
+        """
+        if isinstance(prefix, dict):
+            explicit_map, fallback = dict(prefix), ""
+        elif isinstance(prefix, str):
+            explicit_map, fallback = {}, prefix
+        else:
+            explicit_map = dict(settings.s3_bucket_prefixes)
+            fallback = settings.S3_DOCUMENT_PREFIX if len(bucket_names) == 1 else ""
+        return {b: (explicit_map.get(b, fallback) or "").strip("/") for b in bucket_names}
+
     @property
     def _is_configured(self) -> bool:
         return bool(self.bucket_names)
@@ -68,7 +126,8 @@ class MultiS3Loader:
                 client = self._clients[bucket]
                 try:
                     paginator = client.get_paginator("list_objects_v2")
-                    prefix_path = self.prefix + "/" if self.prefix else ""
+                    bucket_prefix = self._prefixes.get(bucket, "")
+                    prefix_path = bucket_prefix + "/" if bucket_prefix else ""
                     paginate_kwargs = {
                         "Bucket": bucket,
                         "PaginationConfig": {"MaxItems": 1000},
@@ -151,6 +210,10 @@ class S3Loader(MultiS3Loader):
             prefix=prefix,
             region=region,
             local_root=local_root,
+            # S3Loader's contract is "one specific bucket, or the local
+            # filesystem fallback" — auto-discovering every visible bucket
+            # doesn't fit a caller that explicitly asked for a single one.
+            auto_discover=False,
         )
         # Preserve ``self.bucket`` for any code that reads it directly
         self.bucket: Optional[str] = effective_bucket
