@@ -36,7 +36,7 @@ _DEFAULT_AUTHORITY_TABLE: dict[str, float] = {
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", validate_assignment=True)
 
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = ""  # supply via .env / environment — never hardcode
@@ -81,9 +81,14 @@ class Settings(BaseSettings):
     VALKEY_TIMEOUT_SECONDS: float = 0.5
     VALKEY_BREAKER_COOLDOWN_SECONDS: float = 30.0
 
-    # Verifier gate — block ungrounded answers, regenerate once (LexLegis-style)
+    # Verifier gate — block ungrounded answers, auto-correct up to N rounds
     VERIFIER_GATE_ENABLED: bool = True
-    GROUNDEDNESS_MIN: float = 0.0          # gate never blocks; verification badge still shows for transparency
+    GROUNDEDNESS_MIN: float = 0.5          # matches verifier._verdict_from_score's "unsupported" boundary
+    # Each round: search for evidence targeting the specific unsupported
+    # claims, regenerate with the enlarged evidence set, re-verify. Stops
+    # early once grounded or once a round finds no new evidence.
+    GATE_MAX_CORRECTION_ROUNDS: int = 3
+    GATE_MAX_CLAIMS_PER_ROUND: int = 3
     GATE_BLOCKED_MESSAGE: str = (
         "I could not produce an answer grounded in the retrieved legal sources. "
         "Rather than risk an unsupported statement, I'm declining to answer — "
@@ -108,9 +113,40 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_REGION: str = "ap-south-1"
     S3_BUCKET_NAME: Optional[str] = None
-    S3_DOCUMENT_PREFIX: str = "documents"
+    # Empty by default — no folder restriction, every bucket is scanned in
+    # full. Only applied when exactly one bucket is configured (true
+    # single-bucket legacy behavior); set explicitly to scope that one
+    # bucket to a single folder. With multiple buckets this is NEVER used as
+    # a fallback for buckets absent from S3_BUCKET_PREFIXES (see
+    # s3_bucket_prefixes below) — an unmapped bucket is scanned unrestricted,
+    # never silently inherits another bucket's folder.
+    S3_DOCUMENT_PREFIX: str = ""
     # Comma-separated list of bucket names; falls back to S3_BUCKET_NAME if unset
     S3_BUCKET_NAMES: Optional[str] = None
+    # Per-bucket prefix overrides — JSON object string, e.g.
+    # {"all-acts-raw": "Acts", "income-tax-acts": ""}. Lets a multi-bucket
+    # deployment scope each bucket to its own folder layout instead of one
+    # prefix being force-applied to every bucket.
+    S3_BUCKET_PREFIXES: Optional[str] = None
+
+    @field_validator("S3_BUCKET_PREFIXES", mode="before")
+    @classmethod
+    def validate_s3_bucket_prefixes(cls, v: object) -> object:
+        if v in (None, ""):
+            return v
+        if isinstance(v, str):
+            parsed = json.loads(v)
+            if not isinstance(parsed, dict):
+                raise ValueError("S3_BUCKET_PREFIXES must be a JSON object mapping bucket name to prefix")
+            return v
+        raise ValueError("S3_BUCKET_PREFIXES must be a JSON string")
+
+    @computed_field
+    @property
+    def s3_bucket_prefixes(self) -> dict[str, str]:
+        if not self.S3_BUCKET_PREFIXES:
+            return {}
+        return json.loads(self.S3_BUCKET_PREFIXES)
 
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_COLLECTION: str = "juryai_legal"
@@ -137,8 +173,9 @@ class Settings(BaseSettings):
     # HyDE query expansion
     HYDE_ENABLED: bool = True
 
-    # RapidOCR for scanned PDFs
+    # OCR for scanned / image-only PDFs (pytesseract + pdf2image)
     OCR_ENABLED: bool = True
+    OCR_LANG: str = "eng"
     OCR_DPI: int = 150
     OCR_MIN_CHARS_PER_PAGE: int = 100
 
@@ -227,6 +264,16 @@ class Settings(BaseSettings):
     # Web search scraping backends
     WIGOLO_URL: str = "http://127.0.0.1:3333"
     WIGOLO_ENABLED: bool = True
+
+    SPICE_ENABLED: bool = True
+    SPICE_HTTP_URL: str = "http://localhost:8090"
+    SPICE_DATASET: str = "juryai_legal"
+    SPICE_MODEL: str = "nql"
+    SPICE_AUTO_INSTALL: bool = True
+
+    JURIS_VOID_MODEL_PROVIDER: Optional[str] = None
+    JURIS_VOID_MODEL: Optional[str] = None
+
     LIGHTPANDA_BINARY: str = "lightpanda"
     LIGHTPANDA_PORT: int = 9222
 
@@ -327,21 +374,13 @@ class Settings(BaseSettings):
         streaming path seen in practice; the local gateway and other direct
         providers are fallbacks if Groq is unset or fails."""
         chain: list[dict] = []
-        if self.GOOGLE_GEMINI_KEY:
-            chain.append({
-                "kind": "openai",
-                "provider_name": "gemini",
-                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
-                "api_key": self.GOOGLE_GEMINI_KEY,
-                "model": "gemini-2.5-flash",
-            })
         if self.GROQ_API_KEY:
             chain.append({
                 "kind": "openai",
                 "provider_name": "groq",
                 "base_url": "https://api.groq.com/openai/v1",
                 "api_key": self.GROQ_API_KEY,
-                "model": "llama-3.3-70b-specdec",
+                "model": "openai/gpt-oss-120b",
             })
         if self.NVIDIA_API_KEY:
             chain.append({
@@ -358,6 +397,14 @@ class Settings(BaseSettings):
                 "base_url": "https://api.mistral.ai/v1",
                 "api_key": self.MISTRAL_KEY or self.MISTRAL_API_KEY,
                 "model": "mistral-large-latest",
+            })
+        if self.GOOGLE_GEMINI_KEY:
+            chain.append({
+                "kind": "openai",
+                "provider_name": "gemini",
+                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "api_key": self.GOOGLE_GEMINI_KEY,
+                "model": "gemini-2.5-flash",
             })
         if self.SAMBANOVA_KEY:
             chain.append({
@@ -407,6 +454,60 @@ class Settings(BaseSettings):
                 "model": "llama3.2",
             })
         return chain
+
+    @computed_field
+    @property
+    def available_providers(self) -> list[dict]:
+        providers: list[dict] = []
+        if self.GROQ_API_KEY:
+            providers.append({"id": "groq", "label": "Groq GPT-OSS 120B", "model": "openai/gpt-oss-120b"})
+        if self.NVIDIA_API_KEY:
+            providers.append({"id": "nvidia", "label": "NVIDIA Llama 3.1 70B", "model": "meta/llama-3.1-70b-instruct"})
+        if self.MISTRAL_KEY or self.MISTRAL_API_KEY:
+            providers.append({"id": "mistral", "label": "Mistral Large", "model": "mistral-large-latest"})
+        if self.GOOGLE_GEMINI_KEY:
+            providers.append({"id": "gemini", "label": "Gemini 2.5 Flash", "model": "gemini-2.5-flash"})
+        if self.SAMBANOVA_KEY:
+            providers.append({"id": "sambanova", "label": "SambaNova Llama 3.3 70B", "model": "Meta-Llama-3.3-70B-Instruct"})
+        if self.CLOUDFLARE_KEY and self.CLOUDFLARE_ACCOUNT_ID:
+            providers.append({"id": "cloudflare", "label": "Cloudflare Llama 3.3 70B", "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"})
+        if self.OPENAI_API_KEY:
+            providers.append({"id": "openai", "label": "OpenAI GPT-4o Mini", "model": "gpt-4o-mini"})
+        if self.ANTHROPIC_API_KEY:
+            providers.append({"id": "anthropic", "label": "Claude 3.5 Haiku", "model": "claude-3-5-haiku-20241022"})
+        if self.GATEWAY_KEY:
+            providers.append({"id": "gateway", "label": f"Gateway ({self.GATEWAY_MODEL})", "model": self.GATEWAY_MODEL})
+        return providers
+
+    @computed_field
+    @property
+    def juris_void_provider_chain(self) -> list[dict]:
+        full_chain = self.llm_provider_chain
+        if self.JURIS_VOID_MODEL_PROVIDER:
+            for p in full_chain:
+                if p["provider_name"] == self.JURIS_VOID_MODEL_PROVIDER:
+                    entry = dict(p)
+                    if self.JURIS_VOID_MODEL:
+                        entry["model"] = self.JURIS_VOID_MODEL
+                    rest = [x for x in full_chain if x["provider_name"] != self.JURIS_VOID_MODEL_PROVIDER]
+                    return [entry] + rest
+        return full_chain
+
+    @computed_field
+    @property
+    def active_global_provider(self) -> dict:
+        chain = self.llm_provider_chain
+        if chain:
+            return {"id": chain[0]["provider_name"], "model": chain[0]["model"]}
+        return {"id": "none", "model": ""}
+
+    @computed_field
+    @property
+    def active_juris_void_provider(self) -> dict:
+        chain = self.juris_void_provider_chain
+        if chain:
+            return {"id": chain[0]["provider_name"], "model": chain[0]["model"]}
+        return {"id": "none", "model": ""}
 
     @computed_field
     @property

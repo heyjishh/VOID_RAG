@@ -1,9 +1,10 @@
 from __future__ import annotations
+import logging
 from urllib.parse import urlparse
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.config.settings import settings
 from app.core.graph.state import JuryAIState
-from app.core.llm.provider import get_llm
+from app.core.llm.provider import get_llm, corpus_composition, composition_tuning_clause
 from app.core.retrieval.hybrid import hybrid_search
 from app.core.retrieval.reranker import get_reranker
 from app.core.retrieval.citation import derive_citations
@@ -11,89 +12,15 @@ from app.core.graph.evidence_merger import ensure_content_hashes
 from app.core.web_search.searcher import web_search
 from app.core.graph.intent import classify_intent as _classify_intent
 from app.core.memory import format_history as _format_history
-
-_ANSWER_PROMPT = """You are a precise legal AI. Answer EXCLUSIVELY from the evidence below.
-
-GROUNDING RULES (mandatory):
-- Every factual claim MUST be supported by a direct quote or close paraphrase from
-  the numbered evidence items. Place the source number inline: [1], [2], or [1][3].
-- Quote the exact statutory text, holding, or ratio in double-quotes when available.
-- If the evidence does not contain enough information to answer a part of the
-  question, say "The retrieved sources do not address [topic]" — never fill gaps
-  with outside legal knowledge or training data.
-- If the evidence only covers a predecessor or superseded statute/section rather
-  than the one actually asked about, say so explicitly.
-- Use only the bracket numbers shown in the evidence; never renumber or invent them.
-
-Style:
-- When analyzing a specific case or precedent, break it down as labeled bullets
-  (Court:, Citation:, Facts:, Held:, Followed:, Applied by: — use only the labels
-  that apply, skip any you have no evidence for).
-- When an answer works through several distinct errors, grounds, or issues,
-  classify each by its own nature (e.g. jurisdictional / factual / question of
-  law) rather than listing them as one undifferentiated set.
-- For a long or multi-part answer, close with a short (one- or two-sentence)
-  synthesis that ties the parts together.
-- When the answer naturally invites a next step, end with a single relevant
-  follow-up — either a next-step question, or, if answering precisely depends on
-  a fact not in the context (a date, an amount, a missing document), ask for
-  that fact instead. Only when it genuinely helps, not every time.
-- When the answer lays out multiple alternative options or remedies, present them
-  as a markdown comparison table.
-
-Output format:
-{format_instructions}
-{as_of_clause}
-Conversation so far (for follow-up context only — do NOT treat as evidence):
-{history}
-
-Question: {question}
-
-Legal Context:
-{legal_ctx}
-
-Web Context:
-{web_ctx}
-
-Answer:"""
-
-
-_FORMAT_INSTRUCTIONS = {
-    "CREAC": (
-        "Structure the answer with these exact markdown section headers, in order:\n"
-        "## Conclusion\nA short, direct answer to the question (2-4 sentences).\n"
-        "## Rule\nThe governing statutes, sections, and legal tests that apply.\n"
-        "## Explanation\nCase law elaborating the rule (use the labeled-bullet case style above where applicable).\n"
-        "## Application\nApply the rule to the facts in the question.\n"
-        "## Conclusion\nRestate the answer in light of the analysis above."
-    ),
-    "IRAC": (
-        "Structure the answer with these exact markdown section headers, in order:\n"
-        "## Issue\n## Rule\n## Application\n## Conclusion"
-    ),
-    "BRIEF": (
-        "Write a concise legal memo in plain prose paragraphs. Do NOT use CREAC or IRAC "
-        "section headers — keep it tight and direct."
-    ),
-}
-
-
-def answer_format_instructions(output_format: str) -> str:
-    return _FORMAT_INSTRUCTIONS.get((output_format or "CREAC").upper(), _FORMAT_INSTRUCTIONS["CREAC"])
-
-
-_AS_OF_CLAUSE = (
-    "\nThe user is asking as of {date}. Answer strictly using the law as it stood on that "
-    "date — apply the version of each statute/section in force then. If a provision was later "
-    "amended, repealed, or renumbered (e.g. IPC 1860 -> Bharatiya Nyaya Sanhita 2023, CrPC 1973 "
-    "-> Bharatiya Nagarik Suraksha Sanhita 2023, Evidence Act 1872 -> Bharatiya Sakshya Adhiniyam "
-    "2023, all effective 1 July 2024), use the version applicable on {date} and state which one "
-    "you used.\n"
+from app.core.prompts.answer import (
+    ANSWER_PROMPT,
+    answer_format_instructions,
+    as_of_clause,
+    QUERY_EXPAND_PROMPT,
+    QUERY_ANALYSIS_SYSTEM_PROMPT,
+    QUERY_ANALYSIS_PROMPT,
+    DEVILS_ADVOCATE_PROMPT,
 )
-
-
-def as_of_clause(as_of_date: str | None) -> str:
-    return _AS_OF_CLAUSE.format(date=as_of_date) if as_of_date else ""
 
 
 def _domain_of(url: str) -> str:
@@ -209,6 +136,22 @@ def _build_web_query(question: str, intent: str) -> str:
     return q
 
 
+logger = logging.getLogger(__name__)
+
+
+async def _llm_expand_query(question: str) -> str | None:
+    try:
+        resp = await get_llm().ainvoke([
+            HumanMessage(content=QUERY_EXPAND_PROMPT.replace("{question}", question))
+        ])
+        expanded = resp.content.strip().strip('"').strip("'")
+        if expanded and len(expanded) < 200:
+            return expanded
+    except Exception:
+        logger.debug("LLM query expansion failed, using regex fallback")
+    return None
+
+
 async def web_search_node(state: JuryAIState) -> dict:
     steps = list(state.get("reasoning_steps") or [])
     steps.append({
@@ -219,7 +162,14 @@ async def web_search_node(state: JuryAIState) -> dict:
         state["on_step"](steps[-1])
 
     intent = state.get("intent") or _classify_intent(state["question"])
-    query = _build_web_query(state["question"], intent)
+    query = await _llm_expand_query(state["question"]) or _build_web_query(state["question"], intent)
+
+    steps.append({
+        "step": "web_query_expanded",
+        "detail": f"Searching: {query}",
+    })
+    if state.get("on_step"):
+        state["on_step"](steps[-1])
 
     results = await web_search(
         query,
@@ -253,7 +203,7 @@ async def evidence_merge_node(state: JuryAIState) -> dict:
     legal_chunks = list(state.get("legal_chunks") or [])
     web_evidence = list(state.get("web_evidence") or [])
 
-    merged = merge_evidence(legal_chunks, web_evidence, _settings)
+    merged = merge_evidence(legal_chunks, web_evidence, _settings, as_of_date=state.get("as_of_date"))
 
     internal_count = sum(1 for e in merged if e.get("domain") == "internal")
     web_count = sum(1 for e in merged if e.get("domain") == "web")
@@ -286,41 +236,6 @@ async def evidence_merge_node(state: JuryAIState) -> dict:
 # Query analysis node (v1 parity: prompt quality scoring)
 # ---------------------------------------------------------------------------
 
-_QUERY_ANALYSIS_PROMPT = """You are a legal research strategist. Analyze the user's question and provide:
-
-1. A quality score from 1-10 based on:
-   - Jurisdiction clarity (India, specific state, court level)
-   - Practice area specificity (direct tax, GST, constitutional, etc.)
-   - Fact pattern detail (order type, section, assessment year, parties)
-   - Legal issue clarity (limitation, jurisdiction, procedure, merits)
-
-2. Specific gaps identified (what's missing that would improve results) — name the
-   exact missing element where possible: the specific statute Article/Section number,
-   the nature of the claim, or the accrual/computation point in question. If a selected
-   practice area or source filter looks inconsistent with what the question is actually
-   about, call that out as a gap too. If the question cites a statute since superseded
-   by India's 2023 recodification (IPC 1860 -> Bharatiya Nyaya Sanhita 2023, CrPC 1973
-   -> Bharatiya Nagarik Suraksha Sanhita 2023, Indian Evidence Act 1872 -> Bharatiya
-   Sakshya Adhiniyam 2023), flag that as a gap and name the current equivalent section.
-   Since old and new codes can both apply depending on the offense date (1 July 2024
-   cutover), also flag missing enactment-year clarity when it would change which code
-   governs.
-
-3. A suggested rewrite that addresses the gaps
-
-4. A one-sentence improvement_reason that explains WHY the rewrite is better — reference
-   the specific legal elements it adds (article/section numbers, claim type, etc.), not a
-   generic "clarified the question" statement.
-
-Return ONLY a JSON object:
-{
-  "score": 5,
-  "gaps": ["missing jurisdiction", "no specific statute cited", "no fact pattern"],
-  "suggested_rewrite": "Improved question incorporating the missing elements",
-  "improvement_reason": "Pins Article 65 vs Article 64 and the Section 18 accrual trigger, which the original question left unspecified"
-}"""
-
-
 async def query_analysis_node(state: JuryAIState) -> dict:
     """Analyze query quality and suggest improvements (v1 parity)."""
     question = state["question"]
@@ -336,11 +251,11 @@ async def query_analysis_node(state: JuryAIState) -> dict:
     if state.get("on_step"):
         state["on_step"](steps[-1])
     
-    prompt = f"{_QUERY_ANALYSIS_PROMPT}\n\nQuestion: {question}"
+    prompt = f"{QUERY_ANALYSIS_PROMPT}\n\nQuestion: {question}"
     
     try:
         resp = await get_llm().ainvoke([
-            SystemMessage(content="You are a legal research strategist. Return only valid JSON."),
+            SystemMessage(content=QUERY_ANALYSIS_SYSTEM_PROMPT),
             HumanMessage(content=prompt)
         ])
         content = resp.content.strip()
@@ -427,12 +342,12 @@ async def generate_answer_node(state: JuryAIState) -> dict:
 
     if merged:
         legal_ctx = "\n\n".join(
-            f"[{i}] {c['source']} p.{c['page']}\n{c['text']}"
+            f"[{i}] {c['source']}{' (superseded by ' + c['superseded_by'] + ')' if c.get('superseded_by') else ''} p.{c['page']}\n{c['text']}"
             for i, c in enumerate(merged, 1)
             if c.get("domain") == "internal" and c.get("text") and c.get("source")
         ) or "(none)"
         web_ctx = "\n\n".join(
-            f"[{i}] {r.get('title', '')} ({r.get('url', '')})\n{r.get('content', '')}"
+            f"[{i}] {r.get('title', '')}{' (superseded by ' + r['superseded_by'] + ')' if r.get('superseded_by') else ''} ({r.get('url', '')})\n{r.get('content', '')}"
             for i, r in enumerate(merged, 1)
             if r.get("domain") == "web"
         ) or "(none)"
@@ -446,14 +361,20 @@ async def generate_answer_node(state: JuryAIState) -> dict:
             for r in state.get("web_results") or []
         ) or "(none)"
 
+    evidence_for_stats = merged or list(state.get("legal_chunks") or [])
+    composition_clause = state.get("composition_clause") or composition_tuning_clause(
+        corpus_composition(evidence_for_stats)
+    )
+
     prompt = (
-        _ANSWER_PROMPT
+        ANSWER_PROMPT
         .replace("{question}", state["question"])
         .replace("{history}", _format_history(state.get("history")))
         .replace("{legal_ctx}", legal_ctx)
         .replace("{web_ctx}", web_ctx)
         .replace("{format_instructions}", answer_format_instructions(state.get("output_format", "CREAC")))
         .replace("{as_of_clause}", as_of_clause(state.get("as_of_date")))
+        .replace("{composition_clause}", composition_clause)
     )
 
     steps = list(state.get("reasoning_steps") or [])
@@ -482,26 +403,9 @@ async def generate_answer_node(state: JuryAIState) -> dict:
 # Devil's Advocate — standalone counterargument pass over an existing answer
 # ---------------------------------------------------------------------------
 
-_DEVILS_ADVOCATE_PROMPT = """You are opposing counsel. Given the question, the answer below, and the
-evidence it relies on, construct the strongest counterargument against that answer — the argument the
-other side would make. Use only the evidence provided; do not invent new authority. Cite evidence the
-same way the answer does, using its existing [N] numbers. If the evidence genuinely leaves no room for
-a counterargument, say so plainly instead of manufacturing one.
-
-Question: {question}
-
-Answer being challenged:
-{answer}
-
-Evidence:
-{evidence}
-
-Counterargument:"""
-
-
 async def generate_devils_advocate(question: str, answer: str, evidence: list[dict]) -> str:
     from app.core.graph.verifier import _build_evidence_text
-    prompt = _DEVILS_ADVOCATE_PROMPT.format(
+    prompt = DEVILS_ADVOCATE_PROMPT.format(
         question=question, answer=answer, evidence=_build_evidence_text(evidence)
     )
     resp = await get_llm().ainvoke([HumanMessage(content=prompt)])

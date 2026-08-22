@@ -88,6 +88,110 @@ def test_parse_txt_splits():
     assert len(chunks) >= 2
 
 
+def test_parse_csv_renders_as_markdown_table():
+    csv_bytes = b"Section,Description\n302,Punishment for murder\n304,Culpable homicide\n"
+    chunks = parse_bytes(csv_bytes, "sections.csv")
+    assert len(chunks) >= 1
+    combined = " ".join(c["text"] for c in chunks)
+    assert "Punishment for murder" in combined
+    assert "| Section | Description |" in combined
+
+
+def test_parse_csv_empty_returns_no_chunks():
+    assert parse_bytes(b"", "empty.csv") == []
+
+
+def test_parse_docx_extracts_paragraphs_and_headings():
+    from io import BytesIO
+    from docx import Document as DocxDocument
+
+    doc = DocxDocument()
+    doc.add_heading("Section 302", level=1)
+    doc.add_paragraph("Whoever commits murder shall be punished with death.")
+    buf = BytesIO()
+    doc.save(buf)
+
+    chunks = parse_bytes(buf.getvalue(), "judgment.docx")
+    combined = " ".join(c["text"] for c in chunks)
+    assert "Section 302" in combined
+    assert "Whoever commits murder" in combined
+
+
+def test_parse_docx_extracts_tables():
+    from io import BytesIO
+    from docx import Document as DocxDocument
+
+    doc = DocxDocument()
+    table = doc.add_table(rows=2, cols=2)
+    table.rows[0].cells[0].text = "Statute"
+    table.rows[0].cells[1].text = "Punishment"
+    table.rows[1].cells[0].text = "Section 302"
+    table.rows[1].cells[1].text = "Death or life imprisonment"
+    buf = BytesIO()
+    doc.save(buf)
+
+    chunks = parse_bytes(buf.getvalue(), "schedule.docx")
+    combined = " ".join(c["text"] for c in chunks)
+    assert "Death or life imprisonment" in combined
+
+
+def test_parse_docx_empty_returns_no_chunks():
+    from io import BytesIO
+    from docx import Document as DocxDocument
+
+    buf = BytesIO()
+    DocxDocument().save(buf)
+    assert parse_bytes(buf.getvalue(), "empty.docx") == []
+
+
+def test_parse_image_ocrs_when_text_found(monkeypatch):
+    """OCR stack (pytesseract) is mocked — this test verifies parse_bytes'
+    dispatch + chunking for images, not real OCR accuracy, since the
+    tesseract binary isn't installed on every dev/CI machine."""
+    import app.core.ingestion.parser as parser_mod
+
+    fake_pytesseract = MagicMock()
+    fake_pytesseract.image_to_string.return_value = "Section 302 defines murder. " * 10
+    monkeypatch.setitem(__import__("sys").modules, "pytesseract", fake_pytesseract)
+
+    from PIL import Image
+    img = Image.new("RGB", (100, 100), color="white")
+    from io import BytesIO
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+
+    chunks = parser_mod.parse_bytes(buf.getvalue(), "scan.png")
+    assert len(chunks) >= 1
+    assert "Section 302" in " ".join(c["text"] for c in chunks)
+
+
+def test_parse_image_below_min_chars_returns_empty(monkeypatch):
+    import app.core.ingestion.parser as parser_mod
+
+    fake_pytesseract = MagicMock()
+    fake_pytesseract.image_to_string.return_value = "x"
+    monkeypatch.setitem(__import__("sys").modules, "pytesseract", fake_pytesseract)
+
+    from PIL import Image
+    img = Image.new("RGB", (10, 10), color="white")
+    from io import BytesIO
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+
+    assert parser_mod.parse_bytes(buf.getvalue(), "blank.png") == []
+
+
+def test_parse_image_ocr_disabled_returns_empty(monkeypatch):
+    monkeypatch.setattr(settings, "OCR_ENABLED", False)
+    from PIL import Image
+    img = Image.new("RGB", (100, 100), color="white")
+    from io import BytesIO
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+
+    assert parse_bytes(buf.getvalue(), "scan.png") == []
+
+
 def test_parse_pdf_preserves_markdown_structure():
     """Headings (#) and table syntax (|) survive extraction into chunk text."""
     data = _make_structured_pdf(
@@ -211,3 +315,61 @@ def test_parse_pdf_page_metadata_increments_across_pages():
     chunks = parse_bytes(buf.getvalue(), "multi.pdf")
     pages = {c["page"] for c in chunks}
     assert pages == {0, 1}
+
+
+# ---------------------------------------------------------------------------
+# Postgres mirror of the corpus — SpiceAI has no Qdrant connector, so this
+# table is what its SQL/NQL/semantic search against the main corpus
+# actually queries. See app.models.legal_chunk.LegalChunk.
+# ---------------------------------------------------------------------------
+
+def test_chunk_content_id_matches_qdrant_quickwit_formula():
+    """The three stores must agree on a chunk's identity — same
+    uuid5(source|page|text) — so a re-ingest overwrites the same row/point
+    everywhere instead of drifting into three different ids."""
+    import uuid
+    from app.core.ingestion.pipeline import _chunk_content_id
+
+    expected = str(uuid.uuid5(uuid.NAMESPACE_URL, "ipc.pdf|3|Section 302 defines murder."))
+    assert _chunk_content_id("ipc.pdf", 3, "Section 302 defines murder.") == expected
+
+
+@pytest.mark.asyncio
+async def test_upsert_legal_chunks_pg_is_noop_for_empty_chunks():
+    from unittest.mock import AsyncMock
+    from app.core.ingestion import pipeline
+
+    with patch.object(pipeline, "get_sessionmaker") as mock_sessionmaker:
+        await pipeline._upsert_legal_chunks_pg([])
+
+    mock_sessionmaker.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upsert_legal_chunks_pg_executes_upsert_and_commits():
+    from unittest.mock import AsyncMock
+    from app.core.ingestion import pipeline
+
+    mock_db = MagicMock()
+    mock_db.execute = AsyncMock()
+    mock_db.commit = AsyncMock()
+
+    class _FakeSessionCtx:
+        async def __aenter__(self):
+            return mock_db
+        async def __aexit__(self, *exc):
+            return False
+
+    mock_sessionmaker = MagicMock(return_value=_FakeSessionCtx())
+
+    with patch.object(pipeline, "get_sessionmaker", return_value=mock_sessionmaker):
+        await pipeline._upsert_legal_chunks_pg(
+            [{"source": "ipc.pdf", "page": 3, "text": "Section 302 defines murder."}]
+        )
+
+    mock_db.execute.assert_called_once()
+    mock_db.commit.assert_called_once()
+    stmt = mock_db.execute.call_args[0][0]
+    # The compiled statement targets the legal_chunks table, upserting the
+    # same content-addressed id Qdrant/Quickwit computed for this chunk.
+    assert "legal_chunks" in str(stmt)

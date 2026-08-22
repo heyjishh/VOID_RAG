@@ -4,6 +4,7 @@ import NavRail from './components/NavRail.jsx'
 import TopHeader from './components/TopHeader.jsx'
 import ChatPanel from './components/ChatPanel.jsx'
 import DraftPanel from './components/DraftPanel.jsx'
+import JurisVoidPanel from './components/JurisVoidPanel.jsx'
 import EvidencePanel from './components/EvidencePanel.jsx'
 import MatterSidebar from './components/MatterSidebar.jsx'
 import SettingsDrawer from './components/SettingsDrawer.jsx'
@@ -13,7 +14,7 @@ import { listConversations, getConversation, deleteConversation } from './lib/co
 import { getSession, logout } from './lib/session.js'
 import { useMediaQuery } from './lib/useMediaQuery.js'
 
-const CONTENT_MODES = ['ask', 'draft', 'interact']
+const CONTENT_MODES = ['ask', 'draft', 'interact', 'juris-void']
 
 function extractPrefill(location) {
   try {
@@ -230,7 +231,9 @@ function AppShell({ user, onLogout, location }) {
         />
 
         <div className="flex-1 flex overflow-hidden relative">
-          {mode === 'draft' ? (
+          {mode === 'juris-void' ? (
+            <JurisVoidPanel useWebSearch={useWebSearch} />
+          ) : mode === 'draft' ? (
             <DraftPanel />
           ) : (
             <>

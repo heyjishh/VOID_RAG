@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 
+from app.core.retrieval.authority_scorer import find_superseded_statute
+
 # Source types that bypass the web corpus penalty — these are primary legal sources.
 _AUTHORITATIVE_WEB_TYPES: frozenset[str] = frozenset({
     "supreme_court_judgment",
@@ -43,6 +45,7 @@ def merge_evidence(
     legal_chunks: list[dict],
     web_evidence: list[dict],
     settings,
+    as_of_date: str | None = None,
 ) -> list[dict]:
     """Merge and authority-score internal chunks and web evidence.
 
@@ -126,5 +129,12 @@ def merge_evidence(
             best[h] = item
 
     # --- Sort and truncate --------------------------------------------------
-    deduped = sorted(best.values(), key=lambda x: x["final_score"], reverse=True)
-    return deduped[:10]
+    deduped = sorted(best.values(), key=lambda x: x["final_score"], reverse=True)[:10]
+
+    if as_of_date:
+        for item in deduped:
+            match = find_superseded_statute(item.get("text", ""), as_of_date)
+            if match:
+                item["superseded_by"] = match[1]
+
+    return deduped

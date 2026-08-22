@@ -59,6 +59,18 @@ def temporal_relevance(text: str, as_of_date: str) -> float:
     return 1.0
 
 
+def find_superseded_statute(text: str, as_of_date: str) -> tuple[str, str] | None:
+    try:
+        target = _parse_iso(as_of_date)
+    except (ValueError, TypeError):
+        return None
+    lowered = text.lower()
+    for old_name, new_name, transition in _STATUTE_SUCCESSION:
+        if target >= _parse_iso(transition) and old_name in lowered:
+            return (old_name.title(), new_name.title())
+    return None
+
+
 @dataclass
 class CitationGraphNode:
     """Node in citation graph for PageRank computation."""

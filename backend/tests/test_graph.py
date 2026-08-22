@@ -136,20 +136,24 @@ async def test_web_search_node_invokes_on_step_for_start_before_search_runs():
     """web_search_start must fire via on_step before web_search() is awaited,
     and web_search_done only after it returns — proving the callback reports
     progress live rather than being reconstructable only from the final
-    reasoning_steps list."""
+    reasoning_steps list. Query expansion is mocked out (deterministic
+    fallback path) so this stays a network-free unit test."""
     observed: list[dict] = []
 
     async def fake_search(question, max_results=5, on_step=None):
-        assert [s["step"] for s in observed] == ["web_search_start"], (
-            "web_search_start must have already fired via on_step before "
-            "web_search() runs"
+        assert [s["step"] for s in observed] == ["web_search_start", "web_query_expanded"], (
+            "web_search_start and web_query_expanded must have already fired "
+            "via on_step before web_search() runs"
         )
         return []
 
-    with patch("app.core.graph.nodes.web_search", fake_search):
+    with patch("app.core.graph.nodes.web_search", fake_search), \
+         patch("app.core.graph.nodes._llm_expand_query", AsyncMock(return_value=None)):
         await web_search_node({"question": "q", "on_step": observed.append})
 
-    assert [s["step"] for s in observed] == ["web_search_start", "web_search_done"]
+    assert [s["step"] for s in observed] == [
+        "web_search_start", "web_query_expanded", "web_search_done",
+    ]
 
 
 @pytest.mark.asyncio
@@ -178,7 +182,8 @@ async def test_legal_retrieve_node_invokes_on_step_for_start_and_done():
 async def test_nodes_are_on_step_optional_and_do_not_error_when_absent():
     """State dicts without on_step (e.g. the legacy non-streaming path) must
     still work — the callback is opt-in, never required."""
-    with patch("app.core.graph.nodes.web_search", AsyncMock(return_value=[])):
+    with patch("app.core.graph.nodes.web_search", AsyncMock(return_value=[])), \
+         patch("app.core.graph.nodes._llm_expand_query", AsyncMock(return_value=None)):
         result = await web_search_node({"question": "q"})
     assert result["web_evidence"] == []
 

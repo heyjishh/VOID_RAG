@@ -492,6 +492,7 @@ export default function ChatPanel({
                 <input
                   ref={fileInputRef}
                   type="file"
+                  accept=".pdf,.txt,.md,.docx,.csv,.xlsx,.xlsm,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp"
                   onChange={handleFileSelected}
                   style={{ display: 'none' }}
                 />

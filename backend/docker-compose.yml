@@ -115,6 +115,34 @@ services:
       - voidrag-network
     restart: unless-stopped
 
+  # SpiceAI (Void-Space data engine) — federated SQL + NQL over the same
+  # Postgres the backend uses; the backend's own auto-start in main.py
+  # health-checks this URL first and no-ops when it finds this service up.
+  spice:
+    image: spiceai/spiceai:latest
+    container_name: voidrag-spice
+    environment:
+      POSTGRES_PASSWORD: postgres
+      GOOGLE_GEMINI_KEY: ${GOOGLE_GEMINI_KEY:-}
+    volumes:
+      - ./spicepod.yaml.template:/app/spicepod.yaml:ro
+      - spice_data:/app/.spice
+    working_dir: /app
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8090 && printf \"GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && read -r line <&3 && echo $$line | grep -q 200'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - voidrag-network
+    restart: unless-stopped
+
   # Backend API
   backend:
     build:
@@ -181,7 +209,8 @@ services:
       AWS_REGION: ap-south-1
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
       S3_BUCKET_NAMES: ${S3_BUCKET_NAMES:-}
-      S3_DOCUMENT_PREFIX: documents
+      S3_DOCUMENT_PREFIX: ${S3_DOCUMENT_PREFIX:-}
+      S3_BUCKET_PREFIXES: ${S3_BUCKET_PREFIXES:-}
       
       # LLM Gateway (optional)
       GATEWAY_URL: ${GATEWAY_URL:-http://host.docker.internal:8080/v1}
@@ -189,11 +218,19 @@ services:
       GATEWAY_MODEL: llama-3.3-70b
       
       # Direct LLM providers (fallback)
+      GOOGLE_GEMINI_KEY: ${GOOGLE_GEMINI_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      
+
+      # Void-Space data engine (SpiceAI) — same Postgres as above, no duplicate infra
+      SPICE_ENABLED: "true"
+      SPICE_HTTP_URL: http://spice:8090
+      SPICE_DATASET: juryai_legal
+      SPICE_MODEL: nql
+      SPICE_AUTO_INSTALL: "false"
+
       # Web search
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
@@ -226,6 +263,8 @@ services:
         condition: service_healthy
       quickwit:
         condition: service_healthy
+      spice:
+        condition: service_healthy
     networks:
       - voidrag-network
     restart: unless-stopped
@@ -241,6 +280,7 @@ volumes:
   valkey_data:
   qdrant_data:
   quickwit_data:
+  spice_data:
   model_cache:
   document_cache:
   session_store:

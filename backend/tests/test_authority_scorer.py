@@ -386,3 +386,38 @@ class TestAuthorityScorer:
         scorer = AuthorityScorer()
         result = scorer.score({}, query_relevance=0.5, published_at="2023-03-01")
         assert 0.0 <= result <= 1.0
+
+
+class TestFindSupersededStatute:
+    """Coverage for find_superseded_statute — the merge-time succession tagger."""
+
+    def test_find_superseded_statute_after_transition_matches_old_name(self):
+        from app.core.retrieval.authority_scorer import find_superseded_statute
+        text = "Under the Indian Penal Code, murder is punishable under Section 302."
+        result = find_superseded_statute(text, "2024-08-01")
+        assert result == ("Indian Penal Code", "Bharatiya Nyaya Sanhita")
+
+    def test_find_superseded_statute_before_transition_returns_none(self):
+        """Old law is still in force before the transition date — no tag."""
+        from app.core.retrieval.authority_scorer import find_superseded_statute
+        text = "Under the Indian Penal Code, murder is punishable under Section 302."
+        result = find_superseded_statute(text, "2024-01-01")
+        assert result is None
+
+    def test_find_superseded_statute_new_name_returns_none(self):
+        """Text already citing the current law is not flagged as superseded."""
+        from app.core.retrieval.authority_scorer import find_superseded_statute
+        text = "Under the Bharatiya Nyaya Sanhita, murder is punishable under Section 103."
+        result = find_superseded_statute(text, "2024-08-01")
+        assert result is None
+
+    def test_find_superseded_statute_no_match_returns_none(self):
+        from app.core.retrieval.authority_scorer import find_superseded_statute
+        result = find_superseded_statute("Unrelated legal text", "2024-08-01")
+        assert result is None
+
+    def test_find_superseded_statute_invalid_date_returns_none(self):
+        from app.core.retrieval.authority_scorer import find_superseded_statute
+        text = "Under the Indian Penal Code, murder is punishable under Section 302."
+        result = find_superseded_statute(text, "not-a-date")
+        assert result is None

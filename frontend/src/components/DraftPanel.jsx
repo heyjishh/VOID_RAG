@@ -40,7 +40,7 @@ function AttachSlot({ config, attachment, uploading, onAttach, onRemove }) {
       <input
         id={inputId}
         type="file"
-        accept=".pdf,.txt,.md"
+        accept=".pdf,.txt,.md,.docx,.csv,.xlsx,.xlsm,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp"
         className="hidden"
         onChange={e => {
           const file = e.target.files?.[0]

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import gsap from 'gsap'
-import { triggerIngest, getSyncStatus, getLlmStatus } from '../lib/api.js'
+import { triggerIngest, getSyncStatus, getLlmStatus, getAvailableModels, setJurisVoidModel } from '../lib/api.js'
 import { PROMPT_LIBRARY } from '../lib/promptLibrary.js'
 import { prefersReducedMotion } from '../lib/motion.js'
 import ThemeToggle from './ThemeToggle.jsx'
@@ -11,11 +11,14 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
   const [busy, setBusy] = useState(false)
   const [syncInfo, setSyncInfo] = useState(null)
   const [llmStatus, setLlmStatus] = useState(null)
+  const [modelInfo, setModelInfo] = useState(null)
+  const [jvSaving, setJvSaving] = useState(false)
   const drawerRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
     getLlmStatus().then(info => { if (!cancelled) setLlmStatus(info) }).catch(() => {})
+    getAvailableModels().then(info => { if (!cancelled) setModelInfo(info) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
 
@@ -335,6 +338,87 @@ export default function SettingsDrawer({ onClose, useWebSearch, onToggleWebSearc
             )}
           </div>
         </section>
+
+        {/* Model Selection */}
+        {modelInfo && modelInfo.providers?.length > 0 && (
+          <section>
+            <SectionTitle>Model Selection</SectionTitle>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label
+                  className="block text-[11px] font-semibold uppercase mb-1.5"
+                  style={{ color: 'var(--text-muted)', letterSpacing: '0.04em' }}
+                >
+                  Global LLM
+                </label>
+                <div
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-[var(--radius-sm)]"
+                  style={{ background: 'var(--bg-soft)', border: '1px solid var(--border-default)' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--sage)' }} />
+                  <span className="text-[12px] font-medium" style={{ color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                    {modelInfo.global?.id || 'none'}
+                  </span>
+                  <span className="text-[11px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    {modelInfo.global?.model || ''}
+                  </span>
+                </div>
+                <p className="m-0 mt-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  Set via env var priority — first available key wins
+                </p>
+              </div>
+              <div>
+                <label
+                  className="block text-[11px] font-semibold uppercase mb-1.5"
+                  style={{ color: 'var(--text-muted)', letterSpacing: '0.04em' }}
+                >
+                  Juris-VOID LLM
+                </label>
+                <select
+                  value={modelInfo.juris_void?.id || ''}
+                  onChange={async e => {
+                    const pid = e.target.value
+                    const prov = modelInfo.providers.find(p => p.id === pid)
+                    setJvSaving(true)
+                    try {
+                      const res = await setJurisVoidModel(pid, prov?.model || null)
+                      setModelInfo(prev => ({
+                        ...prev,
+                        juris_void: { id: res.provider, model: res.model },
+                      }))
+                    } catch {}
+                    setJvSaving(false)
+                  }}
+                  disabled={jvSaving}
+                  className="w-full text-[12px] px-3 py-2.5 rounded-[var(--radius-sm)]"
+                  style={{
+                    background: 'var(--bg-soft)',
+                    border: '1px solid var(--border-default)',
+                    color: 'var(--text-primary)',
+                    fontFamily: 'var(--font-sans)',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 10px center',
+                    paddingRight: '28px',
+                  }}
+                >
+                  {modelInfo.providers.map(p => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
+                </select>
+                {modelInfo.juris_void?.model && (
+                  <p className="m-0 mt-1 text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    model={modelInfo.juris_void.model}
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Web Search */}
         <section>

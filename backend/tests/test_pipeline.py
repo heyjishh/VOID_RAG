@@ -191,6 +191,28 @@ def test_merge_evidence_min_score_boundary_is_inclusive():
     assert len(result) == 1
 
 
+def test_merge_evidence_tags_superseded_statute_after_transition():
+    """A chunk citing the Indian Penal Code is tagged superseded_by BNS when
+    as_of_date is after the 2024-07-01 transition."""
+    chunk = _make_chunk("Under the Indian Penal Code, murder is Section 302", authority_score=0.8)
+    result = merge_evidence([chunk], [], _settings, as_of_date="2024-08-01")
+    assert result[0]["superseded_by"] == "Bharatiya Nyaya Sanhita"
+
+
+def test_merge_evidence_no_tag_before_transition():
+    """Same chunk, but as_of_date is before the transition — old law still valid."""
+    chunk = _make_chunk("Under the Indian Penal Code, murder is Section 302", authority_score=0.8)
+    result = merge_evidence([chunk], [], _settings, as_of_date="2024-01-01")
+    assert "superseded_by" not in result[0]
+
+
+def test_merge_evidence_no_tag_when_as_of_date_omitted():
+    """Backward compatible: omitting as_of_date never adds superseded_by."""
+    chunk = _make_chunk("Under the Indian Penal Code, murder is Section 302", authority_score=0.8)
+    result = merge_evidence([chunk], [], _settings)
+    assert "superseded_by" not in result[0]
+
+
 # ---------------------------------------------------------------------------
 # evidence_merge_node tests
 # ---------------------------------------------------------------------------

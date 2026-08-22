@@ -18,6 +18,9 @@ npm-debug.log*
 .env
 .env.*
 !.env.*.example
+# Generated at backend startup by _generate_spicepod() — carries live provider
+# keys when the bare-metal (non-Docker) path runs, so never track it.
+backend/spicepod.yaml
 
 # Editors / OS
 .DS_Store
